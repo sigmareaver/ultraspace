@@ -12,10 +12,10 @@ import argparse
 from pathlib import Path
 
 from ultraspace import __version__
-from ultraspace.content import ContentTree, load_tree
+from ultraspace.content import ContentTree, load_manual_pages, load_tree
 from ultraspace.content.generators import sync_generated
 from ultraspace.kernel import TICK_US, EventLog, Phase, RngHub, Scheduler, SimClock
-from ultraspace.presentation import run_teletype
+from ultraspace.presentation import run_teletype, run_tui
 from ultraspace.ship import Simulation
 
 __all__ = ["main", "run_selftest"]
@@ -104,10 +104,13 @@ def main(argv: list[str] | None = None) -> int:
     validate = subparsers.add_parser("validate", help="validate the content tree")
     validate.add_argument("--root", type=Path, default=Path("data"))
 
-    run = subparsers.add_parser("run", help="run a ship in teletype mode")
+    run = subparsers.add_parser("run", help="run a ship (teletype by default; --tui for stations)")
     run.add_argument("--ship", default="core:tb-1")
     run.add_argument("--seed", type=int, default=DEFAULT_SEED)
     run.add_argument("--root", type=Path, default=Path("data"))
+    run.add_argument(
+        "--tui", action="store_true", help="Textual station client instead of teletype"
+    )
 
     generate = subparsers.add_parser(
         "generate", help="regenerate manual tables/diagrams from content"
@@ -158,7 +161,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return 1
     sim = Simulation(tree, str(args.ship), master_seed=int(args.seed))
     try:
-        run_teletype(sim, input, print)
+        if args.tui:
+            run_tui(sim, load_manual_pages(Path(args.root)))
+        else:
+            run_teletype(sim, input, print)
     except KeyboardInterrupt:
         print()
     return 0

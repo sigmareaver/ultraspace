@@ -7,9 +7,11 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.13.4",
     "pyyaml>=6.0.3",
+    "textual>=8.2.8",
 ]
-# Runtime deps are deliberately zero at M0. Additions require justification
-# per docs/engineering/tech-stack.md (adoption schedule table).
+# Runtime deps stay minimal; the kernel remains stdlib-only. Each entry is on
+# the docs/engineering/tech-stack.md adoption schedule: pydantic + PyYAML
+# (content pipeline, M1), textual (primary TUI client, M1; ADR-0001).
 
 [project.scripts]
 ultraspace = "ultraspace.__main__:main"
@@ -21,6 +23,7 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "types-pyyaml>=6.0.12.20260518",
+    "pytest-asyncio>=1.4.0",
 ]
 
 [build-system]
@@ -95,3 +98,6 @@ addopts = "-q --strict-markers"
 markers = [
     "slow: excluded from `make check` fast gate",
 ]
+# Textual pilot tests (tests/presentation/test_tui.py) are async by nature.
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"

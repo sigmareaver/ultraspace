@@ -11,17 +11,26 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ultraspace.interaction import Dispatcher
+from ultraspace.kernel import Event
 from ultraspace.ship import Simulation
 
-__all__ = ["run_teletype"]
+__all__ = ["EVENT_KINDS", "format_event", "run_teletype"]
 
-_EVENT_KINDS = (
+EVENT_KINDS = (
     "annunciator-raise",
     "annunciator-clear",
     "overcurrent-trip",
     "inrush-trip",
     "precharge-complete",
 )
+"""FDR event kinds surfaced asynchronously to the operator (both clients)."""
+
+
+def format_event(event: Event) -> str:
+    """One-line operator rendering of an FDR event (shared with the TUI)."""
+    met_s = event.tick / 10
+    return f"[{met_s:8.1f}s] {event.source}: {event.kind} {dict(event.payload)}"
+
 
 HELP = """\
 ULTRASPACE teletype. Sim advances one tick (0.1 s) per command.
@@ -81,7 +90,6 @@ def _do_wait(sim: Simulation, output_fn: Callable[[str], None], line: str) -> No
 def _flush_events(sim: Simulation, output_fn: Callable[[str], None], cursor: int) -> int:
     events = list(sim.log)[cursor:]
     for event in events:
-        if event.kind in _EVENT_KINDS:
-            met_s = event.tick / 10
-            output_fn(f"* [{met_s:8.1f}s] {event.source}: {event.kind} {dict(event.payload)}")
+        if event.kind in EVENT_KINDS:
+            output_fn(f"* {format_event(event)}")
     return cursor + len(events)
