@@ -35,9 +35,9 @@ away from the bus:
 
 ```
 BUS E  [bus.e]  8 mF
- ├── ctr.bat1  24-110-031  contactor 30 A  → bat1.term → bat1 (Battery, 28 V class, 40 Ah)
- ├── tie.a     24-110-030  contactor 30 A  → BUS A
- └── cb.e1     24-120-005  breaker 5 A     → load.avionics.in → load.avionics (Equipment load, 60 W class)
+ ├── ctr.bat1  24-110-031  contactor 30 A     → bat1.term → bat1
+ ├── tie.a     24-110-030  contactor 30 A     → BUS A
+ └── cb.e1     24-120-005  breaker 5 A        → load.avionics.in → load.avionics
 ```
 
 Rules:
@@ -45,9 +45,10 @@ Rules:
 1. Buses are declared in the blueprint (`bus: true` on the node); bus display
    names are the node id upper-cased with dots as spaces (`bus.e` → `BUS E`).
 2. Branches list devices attached to the bus in blueprint order; `└──` marks
-   the last branch. Column alignment is padded to the longest device id.
-3. The arrow chain shows at most two hops: the far node, then the device on
-   it (with its catalog name). Chains stop at buses, `GND`, or dead ends.
+   the last branch. Device id and rating columns are padded for alignment.
+3. The arrow chain shows at most two hops: the far node, then the device ids
+   on it. Chains stop at buses, `GND`, or dead ends. Catalog names are *not*
+   repeated in trees — they live in the load/parts tables (92-col budget).
 4. Transducers never appear in feeder trees (they carry no power); they get
    their own instrumentation table.
 

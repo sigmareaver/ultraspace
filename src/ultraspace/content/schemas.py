@@ -90,6 +90,7 @@ class NodeSpec(_Model):
 
     id: str
     c_f: float = Field(gt=0.0, description="node capacitance; >0 keeps the solve nonsingular")
+    bus: bool = False  # distribution bus: gets a feeder tree in the WDM, named in manuals
 
 
 class DeviceSpec(_Model):

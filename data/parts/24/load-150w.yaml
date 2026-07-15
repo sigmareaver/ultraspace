@@ -1,7 +1,7 @@
 schema: part/1
 id: load-150w
 part_number: "24-190-150"
-name: "Equipment load, 150 W class (cabin systems)"
+name: "Equipment load, 150 W class"
 ata: 24
 tech_level: 0
 mass_kg: 6.5

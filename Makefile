@@ -28,6 +28,13 @@ types:
 selftest:
 	uv run python -m ultraspace selftest
 
+## Regenerate committed manual tables (data/manuals/*/generated/)
+generate:
+	uv run python -m ultraspace generate
+
+generate-check:
+	uv run python -m ultraspace generate --check
+
 clean:
 	rm -rf .venv .pytest_cache .mypy_cache .ruff_cache .hypothesis dist build
 	find . -type d -name __pycache__ -exec rm -rf {} +

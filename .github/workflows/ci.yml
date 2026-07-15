@@ -22,6 +22,8 @@ jobs:
       - run: make test
       # Determinism canary: selftest digest must be stable (also asserted in pytest).
       - run: make selftest
+      # No-drift gate: committed generated manuals must match content (ADR-0003 §4).
+      - run: make generate-check
 
   # Reserved future stages, per docs/engineering/testing.md:
-  #   content-validate (M1) · conformance (M1) · perf-budgets (M2, pinned runner)
+  #   perf-budgets (M2, pinned runner)

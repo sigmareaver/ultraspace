@@ -12,7 +12,8 @@ import argparse
 from pathlib import Path
 
 from ultraspace import __version__
-from ultraspace.content import load_tree
+from ultraspace.content import ContentTree, load_tree
+from ultraspace.content.generators import sync_generated
 from ultraspace.kernel import TICK_US, EventLog, Phase, RngHub, Scheduler, SimClock
 from ultraspace.presentation import run_teletype
 from ultraspace.ship import Simulation
@@ -108,41 +109,80 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--seed", type=int, default=DEFAULT_SEED)
     run.add_argument("--root", type=Path, default=Path("data"))
 
+    generate = subparsers.add_parser(
+        "generate", help="regenerate manual tables/diagrams from content"
+    )
+    generate.add_argument("--root", type=Path, default=Path("data"))
+    generate.add_argument(
+        "--check", action="store_true", help="fail if committed output is stale (CI gate)"
+    )
+
     args = parser.parse_args(argv)
+    handlers = {
+        "selftest": _cmd_selftest,
+        "validate": _cmd_validate,
+        "run": _cmd_run,
+        "generate": _cmd_generate,
+    }
+    return handlers[str(args.command)](args)
 
-    if args.command == "run":
-        tree = load_tree(Path(args.root))
-        if not tree.ok:
-            for error in tree.errors:
-                print(f"ERROR {error}")
-            return 1
-        sim = Simulation(tree, str(args.ship), master_seed=int(args.seed))
-        try:
-            run_teletype(sim, input, print)
-        except KeyboardInterrupt:
-            print()
-        return 0
 
-    if args.command == "validate":
-        tree = load_tree(Path(args.root))
+def _load_or_report(root: Path) -> ContentTree | None:
+    tree = load_tree(root)
+    if not tree.ok:
         for error in tree.errors:
             print(f"ERROR {error}")
-        print(
-            f"content: {len(tree.parts)} parts, {len(tree.ships)} ships, "
-            f"{len(tree.procedures)} procedures — {'OK' if tree.ok else 'FAILED'}"
-        )
-        return 0 if tree.ok else 1
+        return None
+    return tree
 
-    if args.command == "selftest":
-        ticks = int(args.ticks)
-        seed = int(args.seed)
-        digest = run_selftest(ticks, seed)
-        print("ULTRASPACE kernel selftest")
-        print(f"  ticks={ticks} seed={seed} sim_time_s={ticks * TICK_US / 1_000_000:.1f}")
-        print(f"  event-log digest: {digest}")
-        return 0
 
-    raise AssertionError(f"unhandled command: {args.command!r}")
+def _cmd_generate(args: argparse.Namespace) -> int:
+    tree = _load_or_report(Path(args.root))
+    if tree is None:
+        return 1
+    stale = sync_generated(tree, check=bool(args.check))
+    if args.check:
+        for rel in stale:
+            print(f"STALE manuals/{rel} — run: uv run python -m ultraspace generate")
+        print(f"generated content: {'STALE' if stale else 'up to date'}")
+        return 1 if stale else 0
+    for rel in stale:
+        print(f"wrote manuals/{rel}")
+    print(f"generated content: {len(stale)} file(s) updated")
+    return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    tree = _load_or_report(Path(args.root))
+    if tree is None:
+        return 1
+    sim = Simulation(tree, str(args.ship), master_seed=int(args.seed))
+    try:
+        run_teletype(sim, input, print)
+    except KeyboardInterrupt:
+        print()
+    return 0
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    tree = load_tree(Path(args.root))
+    for error in tree.errors:
+        print(f"ERROR {error}")
+    print(
+        f"content: {len(tree.parts)} parts, {len(tree.ships)} ships, "
+        f"{len(tree.procedures)} procedures — {'OK' if tree.ok else 'FAILED'}"
+    )
+    return 0 if tree.ok else 1
+
+
+def _cmd_selftest(args: argparse.Namespace) -> int:
+    ticks = int(args.ticks)
+    seed = int(args.seed)
+    digest = run_selftest(ticks, seed)
+    print("ULTRASPACE kernel selftest")
+    print(f"  ticks={ticks} seed={seed} sim_time_s={ticks * TICK_US / 1_000_000:.1f}")
+    print(f"  event-log digest: {digest}")
+    return 0
 
 
 if __name__ == "__main__":

@@ -97,11 +97,17 @@ live only in build artifacts).
 
 ## Generators (single source of truth machinery)
 
-`tools/generate_manual_tables.py` (M1): emits breaker tables, pinouts, RT maps, IPC part
-lists, limit tables from parts+blueprint into the manual build. Diff-checked in CI: a PR
-that changes a netlist without regenerated tables fails. The WDM diagram grammar
-(ASCII schematic layout from netlists) is part of this toolchain — layouts are cached
-and hand-tunable via hint files, but *connectivity* is always generated truth.
+`ultraspace generate` (implemented M1 as `ultraspace.content.generators` — in the
+package, not `tools/`, because the in-game DOCS reader renders the same artifacts at
+runtime): emits panel tables, feeder trees, wire lists, load lists, instrumentation
+maps, and IPC extracts from parts+blueprint. Output is **committed** under
+`data/manuals/*/generated/` (v0.2 decision: committed-generated makes hardware changes
+show their manual impact in PR diffs) and byte-stability is enforced —
+`ultraspace generate --check` plus the staleness test fail CI on any drift or hand
+edit. Board-netlist pinout sheets and diagram layout hints join at M2 with L2;
+*connectivity* is always generated truth. Formatting contract:
+`data/manuals/style-guide.md` (incl. the 92-column print constraint, enforced at
+generation time).
 
 ## Authoring ergonomics
 

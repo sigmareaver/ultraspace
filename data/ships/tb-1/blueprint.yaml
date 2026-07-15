@@ -7,8 +7,8 @@ name: "TB-1 Breadboard"
 
 nodes:
   - {id: bat1.term, c_f: 0.0002}
-  - {id: bus.e, c_f: 0.008}
-  - {id: bus.a, c_f: 0.012}
+  - {id: bus.e, c_f: 0.008, bus: true}
+  - {id: bus.a, c_f: 0.012, bus: true}
   - {id: load.avionics.in, c_f: 0.0001}
   - {id: load.cabin.in, c_f: 0.0001}
 
