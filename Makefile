@@ -1,7 +1,7 @@
 # ULTRASPACE developer entry points. Commands documented in AGENTS.md.
 # Always via uv — never bare python/pip (docs/engineering/tech-stack.md).
 
-.PHONY: setup check test lint format types selftest clean
+.PHONY: setup check test lint format types selftest binder clean
 
 setup:
 	uv sync
@@ -36,6 +36,10 @@ generate:
 
 generate-check:
 	uv run python -m ultraspace generate --check
+
+## Export the printable manual binder (HTML) to build/binder/site/
+binder:
+	uv run python tools/export_binder.py
 
 clean:
 	rm -rf .venv .pytest_cache .mypy_cache .ruff_cache .hypothesis dist build

@@ -24,6 +24,7 @@ dev = [
     "mypy>=1.13",
     "types-pyyaml>=6.0.12.20260518",
     "pytest-asyncio>=1.4.0",
+    "mkdocs-material>=9.7.6",
 ]
 
 [build-system]
