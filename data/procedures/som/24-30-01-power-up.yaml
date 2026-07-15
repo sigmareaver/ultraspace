@@ -1,0 +1,58 @@
+schema: procedure/1
+id: som-24-30-01
+title: "Electrical Power Up — Cold and Dark to Buses Powered"
+manual_ref: "SOM 24-30-01"
+ship: core:tb-1
+steps:
+  - step: 1
+    scl: "eps bus.e read"
+    expect_telemetry: mt.bus.e.v
+    expect_max: 2.0
+    within_s: 1.0
+    note: "Verify BUS E de-energized before applying the battery."
+  - step: 2
+    scl: "eps bat.1.contactor close --confirm"
+    expect_telemetry: mt.bus.e.v
+    expect_min: 25.0
+    within_s: 2.0
+    note: "Battery contactor is energization-rated (24-00-00 §2)."
+  - step: 3
+    scl: "eps cb.e1 close"
+    expect_telemetry: mt.bus.e.v
+    expect_min: 25.0
+    within_s: 2.0
+  - step: 4
+    scl: "eps bat.1 read"
+    expect_telemetry: mt.bat.1.i
+    expect_min: 1.5
+    expect_max: 2.5
+    within_s: 2.0
+    note: "Avionics load only: ~2.0 A at 75% charge."
+  - step: 5
+    scl: "eps bus.a.tie read"
+    note: "Verify tie OPEN before precharge (interlock, 24-30-01 note 2)."
+  - step: 6
+    scl: "eps bus.a.precharge start"
+    expect_telemetry: mt.bus.a.v
+    expect_min: 25.0
+    within_s: 5.0
+    note: "50 ohm precharge: tau 0.6 s; COMPLETE below 1.5 V differential."
+  - step: 7
+    scl: "eps bus.a.tie close --confirm"
+    expect_telemetry: mt.bus.a.v
+    expect_min: 25.5
+    within_s: 2.0
+    note: "Closure transient ~75 A at 1.5 V differential: within rating."
+  - step: 8
+    scl: "eps cb.a1 close"
+    expect_telemetry: mt.bus.a.v
+    expect_min: 25.5
+    expect_max: 27.5
+    within_s: 2.0
+  - step: 9
+    scl: "eps bat.1 read"
+    expect_telemetry: mt.bat.1.i
+    expect_min: 6.0
+    expect_max: 8.0
+    within_s: 2.0
+    note: "All loads: ~7.0 A at 75% charge."
