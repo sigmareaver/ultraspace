@@ -1,0 +1,90 @@
+schema: procedure/1
+id: som-24-30-03
+title: "Electrical Power Up — UEV Kestrel — Cold and Dark to Buses Powered"
+manual_ref: "SOM 24-30-03"
+ship: core:uev-kestrel
+# Expected values at soc_init 0.75: EMF = 22.0 + 6.4*0.75 = 26.8 V.
+# BAT chain resistance: r_int 0.05 + contactor 0.02 = 0.07 ohm to its bus.
+steps:
+  - step: 1
+    scl: "eps bus.e read"
+    expect_telemetry: mt.bus.e.v
+    expect_max: 2.0
+    within_s: 1.0
+    note: "Verify BUS E de-energized before applying BAT 1."
+  - step: 2
+    scl: "eps bat.1.contactor close --confirm"
+    expect_telemetry: mt.bus.e.v
+    expect_min: 25.0
+    within_s: 2.0
+    note: "Battery contactor is energization-rated (24-00-00 §2)."
+  - step: 3
+    scl: "eps cb.e1 close"
+    expect_telemetry: mt.bus.e.v
+    expect_min: 25.0
+    within_s: 2.0
+  - step: 4
+    scl: "eps bat.1 read"
+    expect_telemetry: mt.bat.1.i
+    expect_min: 1.5
+    expect_max: 2.5
+    within_s: 2.0
+    note: "Avionics only: 26.8/(0.07 + 0.05 + 13.07) = 2.03 A at 75% charge."
+  - step: 5
+    scl: "eps bus.b read"
+    expect_telemetry: mt.bus.b.v
+    expect_max: 2.0
+    within_s: 1.0
+    note: "Verify BUS B de-energized before applying BAT 2."
+  - step: 6
+    scl: "eps bat.2.contactor close --confirm"
+    expect_telemetry: mt.bus.b.v
+    expect_min: 25.0
+    within_s: 2.0
+  - step: 7
+    scl: "eps cb.b1 close"
+    expect_telemetry: mt.bus.b.v
+    expect_min: 25.5
+    within_s: 2.0
+    note: "Loaded BUS B: 26.8 - 5.0*0.07 = 26.45 V."
+  - step: 8
+    scl: "eps bat.2 read"
+    expect_telemetry: mt.bat.2.i
+    expect_min: 4.5
+    expect_max: 5.5
+    within_s: 2.0
+    note: "Equipment bay only: 26.8/(0.07 + 0.05 + 5.23) = 5.01 A."
+  - step: 9
+    scl: "eps bus.b.tie read"
+    note: "Cross-tie remains OPEN: batteries never paralleled (24-00-01 §2)."
+  - step: 10
+    scl: "eps bus.a.tie read"
+    note: "Verify tie OPEN before precharge (interlock, 24-30-03 note 2)."
+  - step: 11
+    scl: "eps bus.a.precharge start"
+    expect_telemetry: mt.bus.a.v
+    expect_min: 25.0
+    within_s: 5.0
+    note: "50 ohm precharge onto 12 mF: tau 0.6 s; COMPLETE below 1.5 V dv."
+  - step: 12
+    scl: "eps bus.a.tie close --confirm"
+    expect_telemetry: mt.bus.a.v
+    expect_min: 25.5
+    within_s: 2.0
+    note: "Closure transient ~75 A at 1.5 V differential: within rating."
+  - step: 13
+    scl: "eps cb.a1 close"
+    expect_telemetry: mt.bus.a.v
+    expect_min: 25.5
+    expect_max: 27.5
+    within_s: 2.0
+    note: "Loaded BUS A: bus.e 26.31 V minus tie drop 4.96*0.02 = 26.21 V."
+  - step: 14
+    scl: "eps bat.1 read"
+    expect_telemetry: mt.bat.1.i
+    expect_min: 6.0
+    expect_max: 8.0
+    within_s: 2.0
+    note: >
+      Avionics + cabin via tie: branch R 13.12 || 5.30 = 3.775 ohm;
+      26.8/(0.07 + 3.775) = 6.97 A at 75% charge.

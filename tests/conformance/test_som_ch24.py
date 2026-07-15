@@ -11,7 +11,12 @@ from ultraspace.content import ContentTree
 from ultraspace.interaction import run_procedure
 from ultraspace.ship import Simulation
 
-COVERED = {"core:som-24-30-01", "core:som-24-30-02"}
+COVERED = {
+    "core:som-24-30-01",
+    "core:som-24-30-02",
+    "core:som-24-30-03",
+    "core:som-24-30-04",
+}
 
 
 def test_som_24_30_01_power_up_conforms(tree: ContentTree) -> None:
@@ -35,6 +40,30 @@ def test_som_24_30_02_power_down_conforms_after_power_up(tree: ContentTree) -> N
     up = run_procedure(sim, tree.procedures["core:som-24-30-01"])
     assert up.passed, up.failure_summary()
     down = run_procedure(sim, tree.procedures["core:som-24-30-02"])
+    assert down.passed, down.failure_summary()
+
+
+def test_som_24_30_03_kestrel_power_up_conforms(tree: ContentTree) -> None:
+    sim = Simulation(tree, "core:uev-kestrel", master_seed=42)
+    result = run_procedure(sim, tree.procedures["core:som-24-30-03"])
+    assert result.passed, result.failure_summary()
+    # Documented end state: three buses powered, batteries split, no cautions.
+    assert "MASTER CAUTION: clear" in sim.summary()
+
+
+def test_som_24_30_03_conforms_across_seeds(tree: ContentTree) -> None:
+    """The procedure must survive transducer noise, not one lucky seed."""
+    for seed in (1, 7, 1337, 2026):
+        sim = Simulation(tree, "core:uev-kestrel", master_seed=seed)
+        result = run_procedure(sim, tree.procedures["core:som-24-30-03"])
+        assert result.passed, f"seed {seed}: {result.failure_summary()}"
+
+
+def test_som_24_30_04_kestrel_power_down_conforms_after_power_up(tree: ContentTree) -> None:
+    sim = Simulation(tree, "core:uev-kestrel", master_seed=42)
+    up = run_procedure(sim, tree.procedures["core:som-24-30-03"])
+    assert up.passed, up.failure_summary()
+    down = run_procedure(sim, tree.procedures["core:som-24-30-04"])
     assert down.passed, down.failure_summary()
 
 

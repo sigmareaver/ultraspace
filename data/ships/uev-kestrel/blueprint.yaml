@@ -1,0 +1,122 @@
+schema: ship/1
+id: uev-kestrel
+name: "UEV Kestrel"
+# Default player ship (glossary), M1 EPS subset per ata-24-eps.md §2:
+# adds BUS B and per-bus battery assignment over TB-1.
+# Topology (split-bus, batteries never paralleled in normal ops):
+#   BAT1 -> ctr.bat1 -> BUS E -> (tie.a + pcu.a) -> BUS A
+#   BAT2 -> ctr.bat2 -> BUS B
+#   BUS E <- (tie.b + pcu.b, cross-tie, normally OPEN) -> BUS B
+# Loads: avionics (E), cabin (A), equipment bay (B). All switches OPEN cold & dark.
+
+nodes:
+  - {id: bat1.term, c_f: 0.0002}
+  - {id: bat2.term, c_f: 0.0002}
+  - {id: bus.e, c_f: 0.008, bus: true}
+  - {id: bus.a, c_f: 0.012, bus: true}
+  - {id: bus.b, c_f: 0.010, bus: true}
+  - {id: load.avionics.in, c_f: 0.0001}
+  - {id: load.cabin.in, c_f: 0.0001}
+  - {id: load.equipbay.in, c_f: 0.0001}
+
+devices:
+  - id: bat1
+    part: core:bat-28-40
+    ports: {pos: bat1.term, neg: gnd}
+    params: {soc_init: 0.75}   # EMF = 22.0 + 6.4*0.75 = 26.8 V
+  - id: bat2
+    part: core:bat-28-40
+    ports: {pos: bat2.term, neg: gnd}
+    params: {soc_init: 0.75}
+  - id: ctr.bat1
+    part: core:ctr-30b   # energization-rated (SOM 24-00-00 §2)
+    ports: {a: bat1.term, b: bus.e}
+    scl: eps.bat.1.contactor
+  - id: ctr.bat2
+    part: core:ctr-30b
+    ports: {a: bat2.term, b: bus.b}
+    scl: eps.bat.2.contactor
+  - id: tie.a
+    part: core:ctr-30
+    ports: {a: bus.e, b: bus.a}
+    scl: eps.bus.a.tie
+  - id: pcu.a
+    part: core:pcu-50
+    ports: {a: bus.e, b: bus.a}
+    scl: eps.bus.a.precharge
+    interlock_open: tie.a      # SOM 24-30-03 note 2
+  - id: tie.b
+    part: core:ctr-30          # cross-tie, normally OPEN (SOM 24-00-01 §2)
+    ports: {a: bus.e, b: bus.b}
+    scl: eps.bus.b.tie
+  - id: pcu.b
+    part: core:pcu-50
+    ports: {a: bus.e, b: bus.b}
+    scl: eps.bus.b.precharge
+    interlock_open: tie.b
+  - id: cb.e1
+    part: core:cb-5
+    ports: {a: bus.e, b: load.avionics.in}
+    scl: eps.cb.e1
+  - id: load.avionics
+    part: core:load-60w
+    ports: {pos: load.avionics.in, neg: gnd}
+  - id: cb.a1
+    part: core:cb-10
+    ports: {a: bus.a, b: load.cabin.in}
+    scl: eps.cb.a1
+  - id: load.cabin
+    part: core:load-150w
+    ports: {pos: load.cabin.in, neg: gnd}
+  - id: cb.b1
+    part: core:cb-10
+    ports: {a: bus.b, b: load.equipbay.in}
+    scl: eps.cb.b1
+  - id: load.equipbay
+    part: core:load-150w
+    ports: {pos: load.equipbay.in, neg: gnd}
+  - id: mt.bus.e.v
+    part: core:xducer-v
+    measures: bus.e
+    scl: eps.bus.e
+  - id: mt.bus.a.v
+    part: core:xducer-v
+    measures: bus.a
+    scl: eps.bus.a
+  - id: mt.bus.b.v
+    part: core:xducer-v
+    measures: bus.b
+    scl: eps.bus.b
+  - id: mt.bat.1.i
+    part: core:xducer-i
+    measures: ctr.bat1
+    scl: eps.bat.1
+  - id: mt.bat.1.soc
+    part: core:xducer-soc
+    measures: bat1
+    scl: eps.bat.1
+  - id: mt.bat.2.i
+    part: core:xducer-i
+    measures: ctr.bat2
+    scl: eps.bat.2
+  - id: mt.bat.2.soc
+    part: core:xducer-soc
+    measures: bat2
+    scl: eps.bat.2
+
+annunciators:
+  - id: ann.bus.e.uv
+    telemetry: mt.bus.e.v
+    message: "BUS E UNDERVOLT"
+    low: 24.0
+    arm_above: 25.0   # quiet while cold & dark; arms once the bus first comes up
+  - id: ann.bus.a.uv
+    telemetry: mt.bus.a.v
+    message: "BUS A UNDERVOLT"
+    low: 24.0
+    arm_above: 25.0
+  - id: ann.bus.b.uv
+    telemetry: mt.bus.b.v
+    message: "BUS B UNDERVOLT"
+    low: 24.0
+    arm_above: 25.0

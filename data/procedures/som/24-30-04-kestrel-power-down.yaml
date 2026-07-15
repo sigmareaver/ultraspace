@@ -1,0 +1,33 @@
+schema: procedure/1
+id: som-24-30-04
+title: "Electrical Power Down — UEV Kestrel"
+manual_ref: "SOM 24-30-04"
+ship: core:uev-kestrel
+steps:
+  - step: 1
+    scl: "eps cb.a1 open"
+    note: "Shed loads before opening sources (24-30-04 note)."
+  - step: 2
+    scl: "eps bus.a.tie open"
+  - step: 3
+    scl: "eps bus.a.precharge stop"
+  - step: 4
+    scl: "eps cb.b1 open"
+  - step: 5
+    scl: "eps cb.e1 open"
+  - step: 6
+    scl: "eps bat.2.contactor open"
+  - step: 7
+    scl: "eps bat.1.contactor open"
+    note: "Battery contactors last: never strand an energized, unmonitored bus."
+  - step: 8
+    scl: "eps bat.1 read"
+    expect_telemetry: mt.bat.1.i
+    expect_max: 0.5
+    within_s: 2.0
+    note: "WARNING: buses retain capacitor charge after this step."
+  - step: 9
+    scl: "eps bat.2 read"
+    expect_telemetry: mt.bat.2.i
+    expect_max: 0.5
+    within_s: 2.0
