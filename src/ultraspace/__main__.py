@@ -14,6 +14,8 @@ from pathlib import Path
 from ultraspace import __version__
 from ultraspace.content import load_tree
 from ultraspace.kernel import TICK_US, EventLog, Phase, RngHub, Scheduler, SimClock
+from ultraspace.presentation import run_teletype
+from ultraspace.ship import Simulation
 
 __all__ = ["main", "run_selftest"]
 
@@ -101,7 +103,25 @@ def main(argv: list[str] | None = None) -> int:
     validate = subparsers.add_parser("validate", help="validate the content tree")
     validate.add_argument("--root", type=Path, default=Path("data"))
 
+    run = subparsers.add_parser("run", help="run a ship in teletype mode")
+    run.add_argument("--ship", default="core:tb-1")
+    run.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    run.add_argument("--root", type=Path, default=Path("data"))
+
     args = parser.parse_args(argv)
+
+    if args.command == "run":
+        tree = load_tree(Path(args.root))
+        if not tree.ok:
+            for error in tree.errors:
+                print(f"ERROR {error}")
+            return 1
+        sim = Simulation(tree, str(args.ship), master_seed=int(args.seed))
+        try:
+            run_teletype(sim, input, print)
+        except KeyboardInterrupt:
+            print()
+        return 0
 
     if args.command == "validate":
         tree = load_tree(Path(args.root))
