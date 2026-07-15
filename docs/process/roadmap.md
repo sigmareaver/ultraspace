@@ -58,6 +58,8 @@ The casualty loop end-to-end on EPS + Data + minimal Thermal.
   (netlists, test points, DMM probing); stress model + fault scheduling; intermittents.
 - FIM Ch 24/42 with executable isolation tasks; QRH v1; MEL v1 (defer DB-A!).
 - MAINT station (records, spares, swap verbs), LOG station (FDR review v1).
+- Device power dependencies: annunciator panel as a powered device (a dark panel at
+  cold & dark is the honest "alarm reset" — playtest finding, 2026-07-14 follow-up).
 - The canonical U4 latch-up story (simulation-depth.md) fully playable.
 - Perf budgets begin gating; replay bisect tool; casualty test suite per failure mode.
 
