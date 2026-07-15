@@ -88,8 +88,8 @@ class Battery(ElectricalDevice):
         # value actually stamped, not the post-SOC-update one (conservation).
         self._emf_stamped_v = self.emf_v
         net.stamp_conductance(pos, neg, g_s)
-        net.stamp_current(pos, self._emf_stamped_v * g_s)
-        net.stamp_current(neg, -self._emf_stamped_v * g_s)
+        net.stamp_current_a(pos, self._emf_stamped_v * g_s)
+        net.stamp_current_a(neg, -self._emf_stamped_v * g_s)
 
     def after_solve(self, net: ElectricalNetwork, log: EventLog, tick: int) -> None:
         dv = net.voltage_v(self.spec.ports["pos"]) - net.voltage_v(self.spec.ports["neg"])

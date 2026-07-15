@@ -35,7 +35,7 @@ def test_breaker_trips_on_sustained_overcurrent() -> None:
     for _ in range(3):
         net.begin()
         net.stamp_conductance("n1", GROUND, 1.0 / 0.5)
-        net.stamp_current("n1", 10.0 / 0.5)
+        net.stamp_current_a("n1", 10.0 / 0.5)
         breaker.stamp(net)
         net.solve()
         breaker.after_solve(net, log, 0)

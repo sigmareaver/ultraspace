@@ -92,7 +92,7 @@ class ElectricalNetwork:
             self._g[ia][ib] -= g_s
             self._g[ib][ia] -= g_s
 
-    def stamp_current(self, node: str, i_a: float) -> None:
+    def stamp_current_a(self, node: str, i_a: float) -> None:
         """Inject current ``i_a`` (amperes) into ``node`` (Norton source term)."""
         assert self._stamping, "stamp outside begin()/solve() window"
         idx = self._node(node)

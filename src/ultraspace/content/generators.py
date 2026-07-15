@@ -216,8 +216,8 @@ def sync_generated(tree: ContentTree, *, check: bool) -> list[str]:
     stale: list[str] = []
     for rel, text in generate_all(tree).items():
         path = manuals_root / rel
-        current = path.read_text(encoding="utf-8") if path.exists() else None
-        if current != text:
+        existing = path.read_text(encoding="utf-8") if path.exists() else None
+        if existing != text:
             stale.append(rel)
             if not check:
                 path.parent.mkdir(parents=True, exist_ok=True)

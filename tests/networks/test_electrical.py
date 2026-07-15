@@ -21,7 +21,7 @@ def step(
     if emf is not None:
         node, emf_v, r_ohm = emf
         net.stamp_conductance(node, GROUND, 1.0 / r_ohm)
-        net.stamp_current(node, emf_v / r_ohm)
+        net.stamp_current_a(node, emf_v / r_ohm)
     for a, b, r_ohm in stamps:
         net.stamp_conductance(a, b, 1.0 / r_ohm)
     net.solve()
@@ -117,6 +117,6 @@ def test_solver_residual_property(
     for a, b, g_s in conductances:
         net.stamp_conductance(names[a], GROUND if a == b else names[b], g_s)
     for name, i_a in zip(names, injections, strict=True):
-        net.stamp_current(name, i_a)
+        net.stamp_current_a(name, i_a)
     net.solve()
     assert net.residual() < 1e-9

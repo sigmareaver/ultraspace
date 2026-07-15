@@ -15,12 +15,14 @@ test: lint types
 	uv run pytest
 
 lint:
-	uv run ruff check src tests
-	uv run ruff format --check src tests
+	uv run ruff check src tests tools
+	uv run ruff format --check src tests tools
+	uv run python tools/check_imports.py
+	uv run python tools/check_units.py
 
 format:
-	uv run ruff format src tests
-	uv run ruff check --fix src tests
+	uv run ruff format src tests tools
+	uv run ruff check --fix src tests tools
 
 types:
 	uv run mypy
