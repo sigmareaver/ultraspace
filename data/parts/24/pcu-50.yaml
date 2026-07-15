@@ -1,0 +1,12 @@
+schema: part/1
+id: pcu-50
+part_number: "24-115-050"
+name: "Precharge Unit, 50 ohm"
+ata: 24
+tech_level: 0
+mass_kg: 0.6
+behavior: precharge
+params:
+  r_ohm: 50.0
+  complete_dv_v: 1.5   # auto-complete when |V_a - V_b| falls below this
+docs: ["som/24-00-00", "som/24-30-01"]

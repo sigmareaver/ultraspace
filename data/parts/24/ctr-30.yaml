@@ -1,0 +1,13 @@
+schema: part/1
+id: ctr-30
+part_number: "24-110-030"
+name: "Contactor, 30 A DC"
+ata: 24
+tech_level: 0
+mass_kg: 0.9
+behavior: contactor
+params:
+  r_contact_ohm: 0.02
+  rating_a: 30.0
+  inrush_limit_a: 150.0   # closing across >3 V precharge residual exceeds this
+docs: ["som/24-00-00", "som/24-30-01"]

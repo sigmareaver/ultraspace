@@ -1,0 +1,10 @@
+schema: part/1
+id: xducer-v
+part_number: "24-150-001"
+name: "Voltage transducer, DC bus"
+ata: 24
+tech_level: 0
+mass_kg: 0.05
+behavior: xducer_v
+params:
+  sigma_v: 0.05   # gaussian measurement noise, 1-sigma

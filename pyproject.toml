@@ -4,7 +4,10 @@ version = "0.0.1"
 description = "ULTRASPACE — the ultra-in-depth spaceship simulation (working title)."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic>=2.13.4",
+    "pyyaml>=6.0.3",
+]
 # Runtime deps are deliberately zero at M0. Additions require justification
 # per docs/engineering/tech-stack.md (adoption schedule table).
 
@@ -17,6 +20,7 @@ dev = [
     "hypothesis>=6.100",
     "ruff>=0.8",
     "mypy>=1.13",
+    "types-pyyaml>=6.0.12.20260518",
 ]
 
 [build-system]

@@ -1,0 +1,10 @@
+schema: part/1
+id: load-150w
+part_number: "24-190-150"
+name: "Equipment load, 150 W class (cabin systems)"
+ata: 24
+tech_level: 0
+mass_kg: 6.5
+behavior: load
+params:
+  r_ohm: 5.23    # 28 V^2 / 150 W

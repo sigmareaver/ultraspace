@@ -1,0 +1,14 @@
+schema: part/1
+id: bat-28-40
+part_number: "24-101-040"
+name: "Battery, 28 V class, 40 Ah"
+ata: 24
+tech_level: 0
+mass_kg: 31.0
+behavior: battery
+params:
+  emf_full_v: 28.4
+  emf_empty_v: 22.0
+  r_int_ohm: 0.05
+  capacity_c: 144000.0   # 40 Ah * 3600 s/h
+docs: ["som/24-00-00"]

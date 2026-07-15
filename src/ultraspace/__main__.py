@@ -9,8 +9,10 @@ determinism canary: it must be identical on every run, machine, and platform
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from ultraspace import __version__
+from ultraspace.content import load_tree
 from ultraspace.kernel import TICK_US, EventLog, Phase, RngHub, Scheduler, SimClock
 
 __all__ = ["main", "run_selftest"]
@@ -96,7 +98,20 @@ def main(argv: list[str] | None = None) -> int:
     selftest.add_argument("--ticks", type=int, default=DEFAULT_TICKS)
     selftest.add_argument("--seed", type=int, default=DEFAULT_SEED)
 
+    validate = subparsers.add_parser("validate", help="validate the content tree")
+    validate.add_argument("--root", type=Path, default=Path("data"))
+
     args = parser.parse_args(argv)
+
+    if args.command == "validate":
+        tree = load_tree(Path(args.root))
+        for error in tree.errors:
+            print(f"ERROR {error}")
+        print(
+            f"content: {len(tree.parts)} parts, {len(tree.ships)} ships, "
+            f"{len(tree.procedures)} procedures — {'OK' if tree.ok else 'FAILED'}"
+        )
+        return 0 if tree.ok else 1
 
     if args.command == "selftest":
         ticks = int(args.ticks)

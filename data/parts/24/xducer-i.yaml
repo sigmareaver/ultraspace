@@ -1,0 +1,10 @@
+schema: part/1
+id: xducer-i
+part_number: "24-150-002"
+name: "Current transducer, hall effect"
+ata: 24
+tech_level: 0
+mass_kg: 0.08
+behavior: xducer_i
+params:
+  sigma_a: 0.02

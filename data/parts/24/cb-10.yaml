@@ -1,0 +1,11 @@
+schema: part/1
+id: cb-10
+part_number: "24-120-010"
+name: "Circuit breaker, 10 A"
+ata: 24
+tech_level: 0
+mass_kg: 0.1
+behavior: breaker
+params:
+  r_contact_ohm: 0.05
+  rating_a: 10.0

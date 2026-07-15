@@ -1,0 +1,10 @@
+schema: part/1
+id: xducer-soc
+part_number: "24-150-003"
+name: "Battery monitor, state of charge"
+ata: 24
+tech_level: 0
+mass_kg: 0.12
+behavior: xducer_soc
+params:
+  sigma_frac: 0.01

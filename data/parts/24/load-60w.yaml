@@ -1,0 +1,10 @@
+schema: part/1
+id: load-60w
+part_number: "24-190-060"
+name: "Equipment load, 60 W class (avionics rack)"
+ata: 24
+tech_level: 0
+mass_kg: 4.0
+behavior: load
+params:
+  r_ohm: 13.07   # 28 V^2 / 60 W

@@ -1,0 +1,11 @@
+schema: part/1
+id: cb-5
+part_number: "24-120-005"
+name: "Circuit breaker, 5 A"
+ata: 24
+tech_level: 0
+mass_kg: 0.1
+behavior: breaker
+params:
+  r_contact_ohm: 0.05
+  rating_a: 5.0

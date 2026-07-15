@@ -1,0 +1,74 @@
+schema: ship/1
+id: tb-1
+name: "TB-1 Breadboard"
+# Minimal test-fixture vessel (testing.md). Grows very reluctantly.
+# Topology: BAT1 -> contactor -> BUS E -> (tie + precharge) -> BUS A,
+# one breaker-fed load per bus. All switches start OPEN at cold & dark.
+
+nodes:
+  - {id: bat1.term, c_f: 0.0002}
+  - {id: bus.e, c_f: 0.008}
+  - {id: bus.a, c_f: 0.012}
+  - {id: load.avionics.in, c_f: 0.0001}
+  - {id: load.cabin.in, c_f: 0.0001}
+
+devices:
+  - id: bat1
+    part: core:bat-28-40
+    ports: {pos: bat1.term, neg: gnd}
+    params: {soc_init: 0.75}   # EMF = 22.0 + 6.4*0.75 = 26.8 V
+  - id: ctr.bat1
+    part: core:ctr-30
+    ports: {a: bat1.term, b: bus.e}
+    scl: eps.bat.1.contactor
+  - id: tie.a
+    part: core:ctr-30
+    ports: {a: bus.e, b: bus.a}
+    scl: eps.bus.a.tie
+  - id: pcu.a
+    part: core:pcu-50
+    ports: {a: bus.e, b: bus.a}
+    scl: eps.bus.a.precharge
+    interlock_open: tie.a      # SOM 24-30-01 note 2
+  - id: cb.e1
+    part: core:cb-5
+    ports: {a: bus.e, b: load.avionics.in}
+    scl: eps.cb.e1
+  - id: load.avionics
+    part: core:load-60w
+    ports: {pos: load.avionics.in, neg: gnd}
+  - id: cb.a1
+    part: core:cb-10
+    ports: {a: bus.a, b: load.cabin.in}
+    scl: eps.cb.a1
+  - id: load.cabin
+    part: core:load-150w
+    ports: {pos: load.cabin.in, neg: gnd}
+  - id: mt.bus.e.v
+    part: core:xducer-v
+    measures: bus.e
+    scl: eps.bus.e
+  - id: mt.bus.a.v
+    part: core:xducer-v
+    measures: bus.a
+    scl: eps.bus.a
+  - id: mt.bat.1.i
+    part: core:xducer-i
+    measures: ctr.bat1
+    scl: eps.bat.1
+  - id: mt.bat.1.soc
+    part: core:xducer-soc
+    measures: bat1
+    scl: eps.bat.1
+
+annunciators:
+  - id: ann.bus.e.uv
+    telemetry: mt.bus.e.v
+    message: "BUS E UNDERVOLT"
+    low: 24.0
+    arm_above: 25.0   # quiet while cold & dark; arms once the bus first comes up
+  - id: ann.bus.a.uv
+    telemetry: mt.bus.a.v
+    message: "BUS A UNDERVOLT"
+    low: 24.0
+    arm_above: 25.0
