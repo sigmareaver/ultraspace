@@ -4,6 +4,7 @@ M1 carries the schema subset documented in docs/design/systems/ata-24-eps.md §9
 """
 
 from ultraspace.content.loader import ContentError, ContentTree, load_tree
+from ultraspace.content.manuals import ManualPage, load_manual_pages
 from ultraspace.content.schemas import (
     AnnunciatorSpec,
     DeviceSpec,
@@ -19,10 +20,12 @@ __all__ = [
     "ContentError",
     "ContentTree",
     "DeviceSpec",
+    "ManualPage",
     "NodeSpec",
     "PartSpec",
     "ProcedureSpec",
     "ShipSpec",
     "StepSpec",
+    "load_manual_pages",
     "load_tree",
 ]
