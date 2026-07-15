@@ -101,8 +101,13 @@ checklist lives there; walk it before declaring anything finished.
   (`ultraspace.content.load_manual_pages`); Textual TUI v1
   (`uv run python -m ultraspace run --tui`): SYS/EPS station, DOCS reader, LOG (FDR
   review), annunciator row, command bar — all input via `Dispatcher.execute_line`.
-- **M1 remaining**: Kestrel blueprint (EPS subset), manual binder HTML export,
-  acceptance vignette playtest.
+- **M1 feature-complete**: UEV Kestrel blueprint (`--ship core:uev-kestrel`; BUS B,
+  split batteries, cross-tie) + SOM 24-00-01/24-30-03/24-30-04 + conformance; manual
+  binder HTML export (`make binder`, mkdocs-material dev dep); vignette playtest
+  (docs/process/playtests/2026-07-14-m1-vignette.md). ADR-0006 accepted (diegetic
+  displays / MFC-as-part; pane fence binds designers, not players).
+- **M1 open gate**: stranger-with-the-binder playtest (manual-naive human); TUI
+  polish (station-key footer, semantic color contract completion).
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline

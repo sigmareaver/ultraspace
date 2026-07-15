@@ -15,7 +15,7 @@ engineering/process documentation; CI skeleton; project scaffolding.
 **Acceptance:** `make check` green; `ultraspace selftest` runs N deterministic ticks
 and prints a stable state digest; docs index complete.
 
-## M1 — First Light (EPS vertical slice) — IN PROGRESS
+## M1 — First Light (EPS vertical slice) — FEATURE-COMPLETE (one gate open)
 
 The whole concept proven on one chapter: **cold & dark TB-1/Kestrel to powered, by
 manual, in the TUI.**
@@ -23,11 +23,15 @@ manual, in the TUI.**
 Progress 2026-07-14: spec ✅ · content pipeline ✅ · electrical L0/L1 ✅ · instruments
 chain ✅ · SCL v1 ✅ · procedure runner ✅ · SOM Ch 24 + conformance ✅ · teletype ✅ ·
 WDM generators + style guide + no-drift gate ✅ · import/units lint tools ✅ ·
-Textual TUI v1 (SYS/EPS + DOCS + LOG stations, annunciator row, command bar) ✅.
-Remaining: Kestrel blueprint (EPS subset), manual binder HTML export, acceptance
-vignette playtest; TUI polish for the vignette — clickable station-key footer, and
-finish the semantic color contract (state colors for feeder segments / breaker states /
-stale telemetry, always glyph-redundant, mapping codified in the style guide).
+Textual TUI v1 (SYS/EPS + DOCS + LOG stations, annunciator row, command bar) ✅ ·
+Kestrel blueprint (EPS subset: BUS B, split batteries, cross-tie) + SOM 24-30-03/04 +
+conformance ✅ · manual binder HTML export (`make binder`) ✅ · vignette playtest
+(maintainer solo, [playtests/2026-07-14-m1-vignette.md](playtests/2026-07-14-m1-vignette.md);
+found + fixed the undocumented tie-reset recovery) ✅.
+**Open before closing M1:** the true stranger-with-the-binder session (the vignette
+demands a manual-naive human); TUI polish riding along — clickable station-key footer,
+finish the semantic color contract (glyph-redundant state colors, mapping in the
+style guide).
 
 - Content pipeline (schemas, loader, validation, generators) with EPS parts + Kestrel
   blueprint (EPS subset).
