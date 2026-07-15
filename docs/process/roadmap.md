@@ -15,10 +15,15 @@ engineering/process documentation; CI skeleton; project scaffolding.
 **Acceptance:** `make check` green; `ultraspace selftest` runs N deterministic ticks
 and prints a stable state digest; docs index complete.
 
-## M1 — First Light (EPS vertical slice)
+## M1 — First Light (EPS vertical slice) — IN PROGRESS
 
 The whole concept proven on one chapter: **cold & dark TB-1/Kestrel to powered, by
 manual, in the TUI.**
+
+Progress 2026-07-14: spec ✅ · content pipeline ✅ · electrical L0/L1 ✅ · instruments
+chain ✅ · SCL v1 ✅ · procedure runner ✅ · SOM Ch 24 + conformance ✅ · teletype ✅.
+Remaining: Textual TUI, WDM generators + style guide, Kestrel (EPS subset), binder
+export, import/units lint tools.
 
 - Content pipeline (schemas, loader, validation, generators) with EPS parts + Kestrel
   blueprint (EPS subset).

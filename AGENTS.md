@@ -88,11 +88,16 @@ checklist lives there; walk it before declaring anything finished.
 ## Current state (update this section as milestones land)
 
 - **M0 complete**: docs corpus v0.2; kernel (clock/rng/scheduler/events) implemented
-  and tested; CI + Makefile operational; zero runtime deps.
-- **Next (M1 "First Light")**: content pipeline → electrical network → SCL v1 →
-  EPS station TUI → SOM Ch 24 + cold-start conformance. Entry gate: author
-  `docs/design/systems/ata-24-eps.md` per the template in ship-systems.md.
-- Git: repo initialized; no remote configured yet.
+  and tested; CI + Makefile operational.
+- **M1 in progress**: EPS design spec (`docs/design/systems/ata-24-eps.md`), content
+  pipeline (part/ship/procedure schemas + validate CLI), electrical solver, TB-1
+  devices/telemetry/annunciators, SCL v1 + procedure runner, SOM Ch 24 + conformance
+  + casualty suites, teletype client (`uv run python -m ultraspace run`). Runtime
+  deps now: pydantic, PyYAML.
+- **M1 remaining**: Textual TUI (EPS station, DOCS reader, annunciator row), WDM
+  generated tables + diagram style guide, Kestrel blueprint (EPS subset), manual
+  binder HTML export, `tools/check_imports.py` + `tools/check_units.py`.
+- Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline
 
