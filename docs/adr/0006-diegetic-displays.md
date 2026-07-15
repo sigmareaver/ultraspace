@@ -1,6 +1,6 @@
 # ADR-0006: Diegetic displays — MFCs as simulated parts, panes as consoles
 
-Status: Proposed
+Status: Accepted
 Date: 2026-07-14
 Deciders: project maintainer + agent session
 

@@ -81,8 +81,13 @@ players, ssh sessions).
 
 - No graphics mode, no web frontend before 1.0 (textual-web may fall out for free;
   fine, but zero engineering budget allocated).
-- No in-TUI windowing system beyond station split-view (DOCS + one station). If a layout
-  needs three panes, the station design is wrong.
+- TUI layout is at most two panes: primary station + one auxiliary (DOCS or any fitted
+  display device, per [ADR-0006](../adr/0006-diegetic-displays.md)). No windowing
+  system. If a layout needs three panes, the station design is wrong.
+- The pane fence binds designers, not players (ADR-0006 baseline-fit rule): every
+  procedure and acceptance vignette must be completable with one station screen + the
+  manual. Extra fitted displays (MFCs — simulated parts, not UI features) are player
+  advantage, never a requirement.
 
 ## Open questions
 
@@ -90,7 +95,6 @@ players, ssh sessions).
 - OQ-UI-2: Persistent mini bus-state strip on non-EPS stations? Risks dashboard creep vs.
   reduces station thrash. (Prototype at M2, decide by playtest.)
 - OQ-UI-3: Configurable multi-function display (MFC) with side soft-keys — resolved by
-  [ADR-0006](../adr/0006-diegetic-displays.md) (Proposed): MFCs are simulated parts;
+  [ADR-0006](../adr/0006-diegetic-displays.md) (Accepted): MFCs are simulated parts;
   the pane fence binds designers (baseline-fit rule), not players. Prototype at M2
-  alongside OQ-UI-2 (a mini bus strip is a degenerate MFC page). This section's fences
-  get their wording update when the ADR is Accepted.
+  alongside OQ-UI-2 (a mini bus strip is a degenerate MFC page).

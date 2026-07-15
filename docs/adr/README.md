@@ -12,7 +12,7 @@ ADR. ADRs are immutable once Accepted; reversals are new ADRs that supersede.
 | [0003](0003-content-format.md) | YAML + pydantic schemas, versioned, generated manual tables | Accepted |
 | [0004](0004-units-policy.md) | SI floats with unit-suffixed names; no units library in sim loop | Accepted |
 | [0005](0005-manual-driven-development.md) | Manual-Driven Development (manuals as executable specs) | Accepted |
-| [0006](0006-diegetic-displays.md) | Diegetic displays: MFCs as simulated parts, panes as consoles | Proposed |
+| [0006](0006-diegetic-displays.md) | Diegetic displays: MFCs as simulated parts, panes as consoles | Accepted |
 
 ## Template
 
