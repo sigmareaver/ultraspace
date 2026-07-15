@@ -93,13 +93,16 @@ checklist lives there; walk it before declaring anything finished.
   pipeline (part/ship/procedure schemas + validate CLI), electrical solver, TB-1
   devices/telemetry/annunciators, SCL v1 + procedure runner, SOM Ch 24 + conformance
   + casualty suites, teletype client (`uv run python -m ultraspace run`). Runtime
-  deps now: pydantic, PyYAML.
+  deps now: pydantic, PyYAML, textual.
 - **M1 also done**: WDM generator pipeline (`make generate` / `make generate-check`;
   committed output in `data/manuals/*/generated/`, no-drift gate in CI) + diagram
-  style guide (`data/manuals/style-guide.md`).
-- **M1 remaining**: Textual TUI (EPS station, DOCS reader, annunciator row), Kestrel
-  blueprint (EPS subset), manual binder HTML export, `tools/check_imports.py` +
-  `tools/check_units.py`.
+  style guide (`data/manuals/style-guide.md`); `tools/check_imports.py` +
+  `tools/check_units.py` wired into `make lint`; manual page index
+  (`ultraspace.content.load_manual_pages`); Textual TUI v1
+  (`uv run python -m ultraspace run --tui`): SYS/EPS station, DOCS reader, LOG (FDR
+  review), annunciator row, command bar — all input via `Dispatcher.execute_line`.
+- **M1 remaining**: Kestrel blueprint (EPS subset), manual binder HTML export,
+  acceptance vignette playtest.
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline
