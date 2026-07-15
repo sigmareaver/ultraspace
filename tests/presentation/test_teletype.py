@@ -55,7 +55,7 @@ def test_violating_the_caution_is_audible(tree: ContentTree) -> None:
             "quit",
         ],
     )
-    assert "inrush-trip" in out and "SOM 24-30-01" in out
+    assert "inrush-trip" in out and "SOM 24-00-00" in out
 
 
 def test_wait_parses_garbage_politely(tree: ContentTree) -> None:

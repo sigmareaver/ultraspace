@@ -201,9 +201,9 @@ class Contactor(_Switch):
 
     def _close(self, flags: set[str]) -> CommandResult:
         if self.state == "tripped":
-            return refused(f"{self.id} is TRIPPED; reset before closing (SOM 24-30-01)")
+            return refused(f"{self.id} is TRIPPED; reset before closing (SOM 24-00-00 §3)")
         if "confirm" not in flags:
-            return refused(f"{self.id}: guarded action, add --confirm (SOM 24-30-01)")
+            return refused(f"{self.id}: guarded action, add --confirm (SOM 24-00-00 §3)")
         assert self._net is not None and self._log is not None
         dv_v = abs(
             self._net.voltage_v(self.spec.ports["a"]) - self._net.voltage_v(self.spec.ports["b"])
@@ -219,7 +219,7 @@ class Contactor(_Switch):
             )
             return CommandResult(
                 True,
-                f"{self.id}: CLOSED... TRIPPED (inrush). See SOM 24-30-01 note 2.",
+                f"{self.id}: CLOSED... TRIPPED (inrush). See SOM 24-00-00 §3.",
             )
         self.state = "closed"
         return CommandResult(True, f"{self.id}: CLOSED")
@@ -263,7 +263,7 @@ class Precharge(ElectricalDevice):
     def execute(self, verb: str, flags: set[str]) -> CommandResult:
         if verb == "start":
             if self._interlock is not None and self._interlock.state != "open":
-                return refused(f"interlock {self._interlock.id} must be OPEN (SOM 24-30-01 note 2)")
+                return refused(f"interlock {self._interlock.id} must be OPEN (SOM 24-00-00 §3)")
             self.state = "charging"
             return CommandResult(True, f"{self.id}: precharge in progress")
         if verb == "stop":

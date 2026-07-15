@@ -47,7 +47,7 @@ def test_precharge_interlock_refuses_with_tie_closed(tb1: Simulation) -> None:
     result = tb1.execute("eps.bus.a.precharge", "start", set())
     assert not result.ok
     assert "interlock" in result.text
-    assert "SOM 24-30-01" in result.text  # errors teach
+    assert "SOM 24-00-00" in result.text  # errors teach
 
 
 def test_direct_tie_close_onto_dead_bus_trips_on_inrush(tb1: Simulation) -> None:

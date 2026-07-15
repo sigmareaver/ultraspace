@@ -38,7 +38,7 @@ def test_tie_closed_onto_dead_bus_observable_consequences(tree: ContentTree) -> 
     d.execute_line("eps bat.1.contactor close --confirm")
     sim.step(10)
     response = d.execute_line("eps bus.a.tie close --confirm")  # skipping precharge
-    assert "TRIPPED" in response.text and "SOM 24-30-01" in response.text
+    assert "TRIPPED" in response.text and "SOM 24-00-00" in response.text
     sim.step(10)
     panel = d.execute_line("eps bus.a.tie read").text
     assert "TRIPPED" in panel  # panel observation
