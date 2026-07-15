@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ultraspace.content import ContentTree
+from ultraspace.interaction import run_procedure
 from ultraspace.ship import Simulation
 
 SCRIPT: list[tuple[str, str, frozenset[str]]] = [
@@ -35,6 +36,18 @@ def run_script(tree: ContentTree, seed: int) -> str:
 
 def test_same_seed_same_digest(tree: ContentTree) -> None:
     assert run_script(tree, 42) == run_script(tree, 42)
+
+
+def test_procedure_run_is_deterministic(tree: ContentTree) -> None:
+    """The conformance path itself must replay bit-identically."""
+
+    def digest(seed: int) -> str:
+        sim = Simulation(tree, "core:tb-1", master_seed=seed)
+        run_procedure(sim, tree.procedures["core:som-24-30-01"])
+        sim.step(50)
+        return sim.log.digest()
+
+    assert digest(42) == digest(42)
 
 
 def test_different_seed_different_digest(tree: ContentTree) -> None:
