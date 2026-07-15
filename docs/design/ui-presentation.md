@@ -89,10 +89,8 @@ players, ssh sessions).
 - OQ-UI-1: Split-view DOCS default-on for new players? (Playtest at M1.)
 - OQ-UI-2: Persistent mini bus-state strip on non-EPS stations? Risks dashboard creep vs.
   reduces station thrash. (Prototype at M2, decide by playtest.)
-- OQ-UI-3: Configurable multi-function display (MFC) with side soft-keys. As raw UI this
-  violates two fences (stations restrict simultaneous visibility; no in-TUI windowing) —
-  but framed as a *diegetic instrument* it may be exactly right: an MFC as a Block/LRU
-  with a page set, soft keys that emit SCL, fed only by the data network, faultable like
-  any device. Requires an ADR (contradicts a written fence) + a part spec. Earliest
-  sensible prototype: M2, alongside OQ-UI-2 (a mini bus strip is a degenerate MFC page);
-  configurability pays off M3/M4 once multiple chapters exist.
+- OQ-UI-3: Configurable multi-function display (MFC) with side soft-keys — resolved by
+  [ADR-0006](../adr/0006-diegetic-displays.md) (Proposed): MFCs are simulated parts;
+  the pane fence binds designers (baseline-fit rule), not players. Prototype at M2
+  alongside OQ-UI-2 (a mini bus strip is a degenerate MFC page). This section's fences
+  get their wording update when the ADR is Accepted.
