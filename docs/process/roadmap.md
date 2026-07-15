@@ -25,7 +25,9 @@ chain ✅ · SCL v1 ✅ · procedure runner ✅ · SOM Ch 24 + conformance ✅ �
 WDM generators + style guide + no-drift gate ✅ · import/units lint tools ✅ ·
 Textual TUI v1 (SYS/EPS + DOCS + LOG stations, annunciator row, command bar) ✅.
 Remaining: Kestrel blueprint (EPS subset), manual binder HTML export, acceptance
-vignette playtest.
+vignette playtest; TUI polish for the vignette — clickable station-key footer, and
+finish the semantic color contract (state colors for feeder segments / breaker states /
+stale telemetry, always glyph-redundant, mapping codified in the style guide).
 
 - Content pipeline (schemas, loader, validation, generators) with EPS parts + Kestrel
   blueprint (EPS subset).
