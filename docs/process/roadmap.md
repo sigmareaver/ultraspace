@@ -21,9 +21,9 @@ The whole concept proven on one chapter: **cold & dark TB-1/Kestrel to powered, 
 manual, in the TUI.**
 
 Progress 2026-07-14: spec ✅ · content pipeline ✅ · electrical L0/L1 ✅ · instruments
-chain ✅ · SCL v1 ✅ · procedure runner ✅ · SOM Ch 24 + conformance ✅ · teletype ✅.
-Remaining: Textual TUI, WDM generators + style guide, Kestrel (EPS subset), binder
-export, import/units lint tools.
+chain ✅ · SCL v1 ✅ · procedure runner ✅ · SOM Ch 24 + conformance ✅ · teletype ✅ ·
+WDM generators + style guide + no-drift gate ✅.
+Remaining: Textual TUI, Kestrel (EPS subset), binder export, import/units lint tools.
 
 - Content pipeline (schemas, loader, validation, generators) with EPS parts + Kestrel
   blueprint (EPS subset).
