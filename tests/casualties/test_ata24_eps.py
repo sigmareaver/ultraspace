@@ -49,3 +49,26 @@ def test_tie_closed_onto_dead_bus_observable_consequences(tree: ContentTree) -> 
     assert d.execute_line("eps bus.a.precharge start").ok
     sim.step_s(3.0)
     assert d.execute_line("eps bus.a.tie close --confirm").text.count("TRIPPED") == 0
+
+
+def test_precharge_stalls_on_loaded_bus_kestrel(tree: ContentTree) -> None:
+    """The 24-00-00 §3 divider CAUTION, violated: precharge with a load
+    connected on the dead bus never completes, and forcing the tie trips.
+
+    Found by a player improvising a cross-tie before SOM 24-30-05 existed
+    (2026-07-14 follow-up). Divider arithmetic: bus.e stalls near
+    26.8 * 13.19/(50.07 + 13.19) = 5.6 V; dv ~21 V stays far above the
+    1.5 V COMPLETE threshold and the forced closure sees ~21/0.02 ~ 1000 A.
+    """
+    sim = Simulation(tree, "core:uev-kestrel", master_seed=11)
+    d = Dispatcher(sim)
+    sim.step(1)
+    d.execute_line("eps cb.e1 close")  # the mistake: load left on the dead bus
+    d.execute_line("eps bat.2.contactor close --confirm")
+    d.execute_line("eps bus.b.precharge start")
+    sim.step_s(10.0)  # far beyond the unloaded tau of 0.4 s
+    assert "CHARGING" in d.execute_line("eps bus.b.precharge read").text  # never COMPLETE
+    reading = sim.telemetry.read("mt.bus.e.v")
+    assert reading is not None and 4.0 < reading.value < 7.0  # stalled at the divider
+    response = d.execute_line("eps bus.b.tie close --confirm")
+    assert "TRIPPED" in response.text  # forcing it: the inrush lesson, again

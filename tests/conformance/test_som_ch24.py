@@ -16,6 +16,7 @@ COVERED = {
     "core:som-24-30-02",
     "core:som-24-30-03",
     "core:som-24-30-04",
+    "core:som-24-30-05",
 }
 
 
@@ -65,6 +66,16 @@ def test_som_24_30_04_kestrel_power_down_conforms_after_power_up(tree: ContentTr
     assert up.passed, up.failure_summary()
     down = run_procedure(sim, tree.procedures["core:som-24-30-04"])
     assert down.passed, down.failure_summary()
+
+
+def test_som_24_30_05_cross_tie_conforms(tree: ContentTree) -> None:
+    """Abnormal ops: BAT 1 unavailable (cold & dark satisfies the entry
+    condition — the contactor is OPEN), BUS E carried by BAT 2."""
+    for seed in (42, 1, 7, 1337):
+        sim = Simulation(tree, "core:uev-kestrel", master_seed=seed)
+        result = run_procedure(sim, tree.procedures["core:som-24-30-05"])
+        assert result.passed, f"seed {seed}: {result.failure_summary()}"
+        assert "MASTER CAUTION: clear" in sim.summary()
 
 
 def test_every_shipped_procedure_is_covered(tree: ContentTree) -> None:

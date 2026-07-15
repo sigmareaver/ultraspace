@@ -1,0 +1,55 @@
+schema: procedure/1
+id: som-24-30-05
+title: "Cross-Tie — Feed BUS E from BAT 2 (Abnormal)"
+manual_ref: "SOM 24-30-05"
+ship: core:uev-kestrel
+# Expected values at soc_init 0.75: EMF = 22.0 + 6.4*0.75 = 26.8 V.
+# BAT 2 chain: r_int 0.05 + contactor 0.02 = 0.07 ohm to BUS B.
+steps:
+  - step: 1
+    scl: "eps bat.1.contactor read"
+    note: "VERIFY OPEN: cross-tie with both batteries closed parallels them (24-00-01 §2)."
+  - step: 2
+    scl: "eps cb.e1 open"
+    note: "Shed BUS E loads: precharge cannot raise a loaded bus (24-00-00 §3)."
+  - step: 3
+    scl: "eps bat.2.contactor close --confirm"
+    expect_telemetry: mt.bus.b.v
+    expect_min: 25.0
+    within_s: 2.0
+  - step: 4
+    scl: "eps cb.b1 close"
+    expect_telemetry: mt.bus.b.v
+    expect_min: 25.5
+    within_s: 2.0
+    note: "Loaded BUS B: 26.8 - 5.0*0.07 = 26.45 V."
+  - step: 5
+    scl: "eps bus.b.tie read"
+    note: "Verify cross-tie OPEN before precharge (interlock, 24-00-00 §3)."
+  - step: 6
+    scl: "eps bus.b.precharge start"
+    expect_telemetry: mt.bus.e.v
+    expect_min: 25.0
+    within_s: 5.0
+    note: "50 ohm precharge onto unloaded 8 mF BUS E: tau 0.4 s."
+  - step: 7
+    scl: "eps bus.b.tie close --confirm"
+    expect_telemetry: mt.bus.e.v
+    expect_min: 25.5
+    within_s: 2.0
+  - step: 8
+    scl: "eps cb.e1 close"
+    expect_telemetry: mt.bus.e.v
+    expect_min: 25.5
+    expect_max: 27.5
+    within_s: 2.0
+    note: "Loaded BUS E via cross-tie: 26.31*13.12/13.14 = 26.27 V."
+  - step: 9
+    scl: "eps bat.2 read"
+    expect_telemetry: mt.bat.2.i
+    expect_min: 6.5
+    expect_max: 7.5
+    within_s: 2.0
+    note: >
+      Equipment bay + avionics via cross-tie: 5.28 || 13.14 = 3.766 ohm;
+      26.8/(0.07 + 3.766) = 6.99 A at 75% charge.
