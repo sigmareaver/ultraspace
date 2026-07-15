@@ -18,7 +18,7 @@ devices:
     ports: {pos: bat1.term, neg: gnd}
     params: {soc_init: 0.75}   # EMF = 22.0 + 6.4*0.75 = 26.8 V
   - id: ctr.bat1
-    part: core:ctr-30
+    part: core:ctr-30b   # energization-rated; a plain ctr-30 here trips on closure
     ports: {a: bat1.term, b: bus.e}
     scl: eps.bat.1.contactor
   - id: tie.a

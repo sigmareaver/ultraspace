@@ -1,0 +1,14 @@
+schema: part/1
+id: ctr-30b
+part_number: "24-110-031"
+name: "Contactor, 30 A DC, battery (energization-rated)"
+ata: 24
+tech_level: 0
+mass_kg: 1.4
+behavior: contactor
+params:
+  r_contact_ohm: 0.02
+  rating_a: 30.0
+  inrush_limit_a: 2000.0   # arc-quench contacts: rated to energize a dead bus.
+                           # Bus tie contactors (ctr-30) are NOT — hence precharge.
+docs: ["som/24-00-00", "som/24-30-01"]

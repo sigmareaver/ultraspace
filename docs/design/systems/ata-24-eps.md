@@ -21,7 +21,8 @@ umbilical power: M4. AC: none (TL0 ships are DC-only by design culture).
 | Device | Part | Behavior |
 |---|---|---|
 | BAT 1/2 | `core:bat-28-40` | 28 V class battery: EMF(SOC) + internal resistance |
-| Battery/tie contactors | `core:ctr-30` | Commanded switch, 30 A, contact resistance |
+| Battery contactor | `core:ctr-30b` | As ctr-30 but energization-rated (inrush 2 kA): may close onto a dead bus |
+| Bus tie contactor | `core:ctr-30` | Commanded switch, 30 A; inrush limit 150 A — precharge required |
 | Precharge unit | `core:pcu-50` | Switched 50 Ω resistor path with auto-complete monitor |
 | Load breakers | `core:cb-5` etc. | Manual breaker + instant overcurrent trip (thermal curve: M2) |
 | Loads | `core:load-*` | Constant-resistance equipment loads (constant-power: M2) |

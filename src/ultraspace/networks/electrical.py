@@ -63,6 +63,7 @@ class ElectricalNetwork:
         self._c_f = [c_f for _, c_f in nodes]
         self._dt_s = dt_s
         self._v = [0.0] * len(nodes)
+        self._v_prev = [0.0] * len(nodes)
         n = len(nodes)
         self._g = [[0.0] * n for _ in range(n)]
         self._i = [0.0] * n
@@ -106,8 +107,21 @@ class ElectricalNetwork:
             g_hist = c_f / self._dt_s
             self._g[idx][idx] += g_hist
             self._i[idx] += g_hist * self._v[idx]
+        self._v_prev = self._v
         self._v = solve_linear(self._g, self._i)
         self._stamping = False
+
+    def capacitor_power_w(self) -> float:
+        """Power absorbed by node capacitances this tick: Σ V·C(V-V_prev)/dt.
+
+        Backward-Euler consistent; term in the conservation audit
+        (source = dissipation + storage, testing.md invariant #3).
+        """
+        total_w = 0.0
+        for idx, c_f in enumerate(self._c_f):
+            i_cap_a = c_f * (self._v[idx] - self._v_prev[idx]) / self._dt_s
+            total_w += self._v[idx] * i_cap_a
+        return total_w
 
     # -- read phase ----------------------------------------------------------
 
