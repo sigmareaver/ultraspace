@@ -110,3 +110,22 @@ def test_read_and_summary_are_instrument_mediated(tb1: Simulation) -> None:
 def test_unknown_address_refused(tb1: Simulation) -> None:
     result = tb1.execute("eps.bus.zz", "read", set())
     assert not result.ok
+
+
+def test_inrush_trip_after_journaled_command_same_tick(tb1: Simulation) -> None:
+    """Regression: the inrush-trip event must carry the *current* tick.
+
+    The dispatcher journals the command at clock.tick_index before the
+    device logs its trip; a stale solved-tick here regressed the journal
+    and the kernel ValueError escaped to the player (found improvising a
+    cross-tie, playtest 2026-07-14 follow-up).
+    """
+    tb1.step(2)
+    assert tb1.execute("eps.bat.1.contactor", "close", {"confirm"}).ok
+    tb1.step(50)  # quiescent time so solved tick lags any fresh journal entry
+    # Journal something at the current tick, exactly as Dispatcher does.
+    tb1.log.append(tb1.clock.tick_index, "scl", "command", {"address": "eps.bus.a.tie"})
+    result = tb1.execute("eps.bus.a.tie", "close", {"confirm"})  # dead BUS A: trips
+    assert result.ok and "TRIPPED" in result.text  # no kernel exception reaches us
+    trip = [e for e in tb1.log if e.kind == "inrush-trip"][-1]
+    assert trip.tick == tb1.clock.tick_index

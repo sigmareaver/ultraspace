@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ultraspace.content.schemas import DeviceSpec, PartSpec
-from ultraspace.kernel import EventLog
+from ultraspace.kernel import EventLog, SimClock
 from ultraspace.networks import ElectricalNetwork
 
 __all__ = [
@@ -189,30 +189,31 @@ class Contactor(_Switch):
         self._inrush_limit_a = part.params["inrush_limit_a"]
         self._net: ElectricalNetwork | None = None  # bound at assembly
         self._log: EventLog | None = None
-        self._tick = 0
+        self._clock: SimClock | None = None
 
-    def bind(self, net: ElectricalNetwork, log: EventLog) -> None:
+    def bind(self, net: ElectricalNetwork, log: EventLog, clock: SimClock) -> None:
         self._net = net
         self._log = log
-
-    def after_solve(self, net: ElectricalNetwork, log: EventLog, tick: int) -> None:
-        self._tick = tick
-        super().after_solve(net, log, tick)
+        self._clock = clock
 
     def _close(self, flags: set[str]) -> CommandResult:
         if self.state == "tripped":
             return refused(f"{self.id} is TRIPPED; reset before closing (SOM 24-00-00 §3)")
         if "confirm" not in flags:
             return refused(f"{self.id}: guarded action, add --confirm (SOM 24-00-00 §3)")
-        assert self._net is not None and self._log is not None
+        assert self._net is not None and self._log is not None and self._clock is not None
         dv_v = abs(
             self._net.voltage_v(self.spec.ports["a"]) - self._net.voltage_v(self.spec.ports["b"])
         )
         peak_a = dv_v * self._g_s
         if peak_a > self._inrush_limit_a:
             self.state = "tripped"
+            # Command-time event: logged at the *current* tick, not the last
+            # solved one — a stale tick here regresses the journal (kernel
+            # ValueError escaping to the player; found in the 2026-07-14
+            # cross-tie session).
             self._log.append(
-                self._tick,
+                self._clock.tick_index,
                 self.id,
                 "inrush-trip",
                 {"peak_a": round(peak_a, 1), "limit_a": self._inrush_limit_a},

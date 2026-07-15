@@ -55,7 +55,7 @@ class Simulation:
             if part.behavior in _ELECTRICAL:
                 device = build_device(spec, part, DT_S)
                 if isinstance(device, Contactor):
-                    device.bind(self.net, self.log)
+                    device.bind(self.net, self.log, self.clock)
                 self.devices[spec.id] = device
                 self._electrical.append(device)
             elif part.behavior in _XDUCERS:
