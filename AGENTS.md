@@ -92,5 +92,15 @@ checklist lives there; walk it before declaring anything finished.
 - **Next (M1 "First Light")**: content pipeline → electrical network → SCL v1 →
   EPS station TUI → SOM Ch 24 + cold-start conformance. Entry gate: author
   `docs/design/systems/ata-24-eps.md` per the template in ship-systems.md.
-- Git: repo initialized; no remote configured yet. Conventional commits
-  (`feat(ata24): ...`, scope = ATA chapter or package).
+- Git: repo initialized; no remote configured yet.
+
+## Git discipline
+
+- **Commit every feature, fix, and change/tweak as its own commit** (project rule —
+  history is the regression-bisection and creative-direction ledger; details in
+  [docs/process/workflow.md](docs/process/workflow.md) "Commit discipline").
+- Conventional commits: `feat(ata24): ...`, `fix(kernel): ...`, `docs(process): ...`,
+  `content(kestrel): ...`. Scope = ATA chapter or package name.
+- Commit only at green (`make check`; full `make test` when models/content/determinism-
+  adjacent code changed). One logical change per commit; spec deltas ride with the code
+  they govern; golden-value updates are justified in the commit body.

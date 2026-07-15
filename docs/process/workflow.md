@@ -45,6 +45,24 @@ work (kernel, tooling), step 2 is replaced by the engineering spec delta.
   `content(kestrel): ...`). Scope = ATA chapter or package name. Enables changelog
   generation and per-chapter history (`git log --grep 'ata24'`).
 
+### Commit discipline (project rule)
+
+**Every feature, fix, and change/tweak is committed as its own commit** — including
+docs-only and content-only changes. Rationale: the history is our regression bisection
+tool and our creative-direction ledger; when a sim behavior regresses or a design
+direction is reversed, `git log`/`git bisect` must be able to isolate exactly what
+changed and why.
+
+1. One logical change per commit; unrelated changes never share a commit.
+2. Commit at green: `make check` passes before committing (determinism suite too when
+   models/content changed). Broken-state checkpoints go on branches, never `main`.
+3. The commit body says *why*, not just what — especially for design reversals
+   (reference the spec/ADR delta: "per ADR-0006", "reverses part of tech-levels.md §…").
+4. Spec deltas travel in the same commit as the code/content they govern (workflow
+   step 7); a commit that changes behavior but not its spec is incomplete.
+5. Golden/determinism value updates (state hashes, pinned digests) are always called
+   out explicitly in the commit body with their justification.
+
 ## Definition of Done (PR gate — the checklist reviewers actually walk)
 
 1. CI green (lint, types, tests, content validation, conformance, determinism).
