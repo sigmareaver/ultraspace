@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Environments & tool caches
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Editors/OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Game artifacts (dev runs)
+*.fdr.jsonl
+saves/
