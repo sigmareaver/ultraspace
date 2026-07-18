@@ -1,10 +1,10 @@
 """Persistent chrome widgets: annunciator row and clock strip.
 
 The annunciator row renders the modeled `AnnunciatorPanel` lamps — blueprint
-order, master caution first. Color is semantic and redundant with glyphs
-(colorblind-safe, ui-presentation.md): active caution is amber `▲`, an idle
-lamp is a dim `·`. The clock strip shows MET and the M1 time discipline
-(turn-based: one tick per command, `wait` to advance).
+order, master caution first. Colors/glyphs are the semantic contract from
+`palette.py` (colorblind-safe, ui-presentation.md): an active caution is a
+backlit amber `▲`, an idle lamp is a dim `·`. The clock strip shows MET and
+the M1 time discipline (turn-based: one tick per command, `wait` to advance).
 """
 
 from __future__ import annotations
@@ -12,12 +12,15 @@ from __future__ import annotations
 from rich.text import Text
 from textual.widgets import Static
 
+from ultraspace.presentation.tui.palette import (
+    CAUTION_GLYPH,
+    LAMP_ACTIVE_STYLE,
+    OFF_GLYPH,
+    OFF_STYLE,
+)
 from ultraspace.ship import Simulation
 
 __all__ = ["AnnunciatorRow", "ClockStrip"]
-
-_ACTIVE = "bold black on yellow"
-_IDLE = "dim"
 
 
 class AnnunciatorRow(Static):
@@ -25,13 +28,16 @@ class AnnunciatorRow(Static):
 
     def refresh_from_sim(self, sim: Simulation) -> None:
         master = sim.panel.master_caution
-        tiles = [Text(f" {'▲' if master else '·'} MSTR CAUT ", style=_ACTIVE if master else _IDLE)]
+        tiles = [self._tile("MSTR CAUT", master)]
         for lamp in sim.panel.annunciators:
-            glyph = "▲" if lamp.active else "·"
-            tiles.append(
-                Text(f" {glyph} {lamp.spec.message} ", style=_ACTIVE if lamp.active else _IDLE)
-            )
-        self.update(Text("│", style="dim").join(tiles))
+            tiles.append(self._tile(lamp.spec.message, lamp.active))
+        self.update(Text("│", style=OFF_STYLE).join(tiles))
+
+    @staticmethod
+    def _tile(message: str, active: bool) -> Text:
+        glyph = CAUTION_GLYPH if active else OFF_GLYPH
+        style = LAMP_ACTIVE_STYLE if active else OFF_STYLE
+        return Text(f" {glyph} {message} ", style=style)
 
 
 class ClockStrip(Static):
@@ -42,6 +48,6 @@ class ClockStrip(Static):
             Text(
                 f" MET {sim.clock.mission_elapsed_str()} │ tick {sim.clock.tick_index}"
                 f" │ turn-based: 1 tick per command, 'wait <s>' to advance",
-                style="dim",
+                style=OFF_STYLE,
             )
         )

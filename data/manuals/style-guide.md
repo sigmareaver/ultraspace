@@ -1,8 +1,9 @@
 # Manual Diagram & Table Style Guide
 
-Status: v0.1 (M1: WDM tables + feeder trees) · Owner: engineering+design
+Status: v0.2 (M1: + semantic state-color mapping) · Owner: engineering+design
 Scope: conventions for **generated** manual content and the diagrams the DOCS
-reader and printed binder render. Authored prose style lives in
+reader and printed binder render, plus the live-station screens that share
+the diagram grammar. Authored prose style lives in
 [docs/design/manuals-as-gameplay.md](../../docs/design/manuals-as-gameplay.md).
 
 ## Generated blocks
@@ -67,3 +68,33 @@ Rules:
 Generated tables and trees must render inside 92 columns (binder margin at
 132-column terminal with the DOCS split view). The generator enforces this;
 content that cannot fit is a generation error, not a wrap.
+
+## Semantic state colors (live screens only)
+
+Manual pages stay monochrome (print). Live station screens color state with
+one vocabulary — the semantic contract of
+[docs/design/ui-presentation.md](../../docs/design/ui-presentation.md)
+("rendering language"); executable source:
+`src/ultraspace/presentation/tui/palette.py`. The glyphs are shared with the
+printed grammar, so a state reads the same on screen and on paper.
+
+| Meaning | Glyph | Color | M1 examples |
+|---|---|---|---|
+| Caution — act or be aware | `▲` | amber | active annunciator lamp (backlit tile), `▲ TRIPPED` switch, `MASTER CAUTION: ACTIVE` |
+| Advisory — normal transition in progress | `●` | cyan | precharge `● CHARGING` |
+| Off / de-energized | `·` | dim | `· OPEN` / `· IDLE` states, idle lamps, de-energized feeder segments, `MASTER CAUTION: clear` |
+| Stale / no report | `?` | dim | aged telemetry (`age` tag + `?`), unreported bus voltage (`--- ? (no report)`) |
+| Warning — immediate action | `▲` | red | **reserved** — nothing ships warning-level at M1 (severity lands with the QRH, M2) |
+
+Rules:
+
+1. **No color-only information.** Every colored element also carries its
+   glyph or the state word itself (colorblind-safe; the accessibility
+   commitments in ui-presentation.md). A glyph is a prefix, never a
+   replacement for the word.
+2. De-energized feeder-tree segments dim (state cell + `→` tail). Topology —
+   device ids, branch glyphs — stays lit: it is always true.
+3. Stale telemetry is visibly stale: `age` column + `?` tag, dimmed (No God
+   View — the display admits when it is guessing).
+4. New states pick from this table. Adding a row is a design decision
+   (ui-presentation.md delta), not an ad-hoc style choice in a widget.

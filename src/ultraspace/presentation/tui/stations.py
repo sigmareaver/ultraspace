@@ -4,7 +4,8 @@ Stations render exclusively from sanctioned surfaces: the telemetry store,
 the annunciator panel, panel observations via the command surface (``read``),
 and the FDR event log. The EPS feeder tree uses the same diagram grammar as
 the generated WDM sheets (blueprint order, `→` tails) with live annotations —
-one grammar for manual pages and live screens.
+one grammar for manual pages and live screens. State colors and glyphs come
+from `palette.py` (the semantic color contract); nothing is color-only.
 """
 
 from __future__ import annotations
@@ -15,12 +16,21 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Markdown, OptionList, RichLog, Static
 
 from ultraspace.content.manuals import ManualPage
+from ultraspace.presentation.tui.palette import (
+    CAUTION_GLYPH,
+    CAUTION_STYLE,
+    OFF_STYLE,
+    STALE_GLYPH,
+    STALE_STYLE,
+    state_annotation,
+)
 from ultraspace.ship import Simulation
 from ultraspace.ship.sim import DT_S
 
 __all__ = ["DocsStation", "EpsStation", "LogStation", "render_eps"]
 
 _STALE_AGE_S = 1.0  # older than this gets the visible `?` tag (No God View)
+_STATE_CELL_W = 12  # tree state column width (glyph + word + pad) for tail alignment
 
 _DOCS_WELCOME = """\
 # DOCS
@@ -49,34 +59,51 @@ def _device_states(sim: Simulation) -> dict[str, str]:
     return states
 
 
-def _measurement_lines(sim: Simulation) -> list[str]:
-    lines = ["MEASUREMENTS"]
+def _styled_state(state: str) -> Text:
+    """A state word with its contract annotation: glyph prefix + style."""
+    glyph, style = state_annotation(state)
+    word = f"{glyph} {state}" if glyph else state
+    return Text(word, style=style or "")
+
+
+def _measurement_lines(sim: Simulation) -> list[Text]:
+    lines = [Text("MEASUREMENTS")]
     ids = sim.telemetry.ids()
     if not ids:
-        lines.append("  --- NO DATA (instruments cold)")
+        lines.append(Text(f"  --- {STALE_GLYPH} NO DATA (instruments cold)", style=STALE_STYLE))
     for telemetry_id in ids:
         item = sim.telemetry.read(telemetry_id)
         assert item is not None  # ids() only lists published items
         age_s = (sim.clock.tick_index - item.tick) * DT_S
-        stale = "  ?" if age_s > _STALE_AGE_S else ""
+        stale = age_s > _STALE_AGE_S
+        tag = f"  {STALE_GLYPH}" if stale else ""
         lines.append(
-            f"  {telemetry_id:<14} {item.value:9.3f} {item.unit:<4}"
-            f" src {item.source}  age {age_s:4.1f} s{stale}"
+            Text(
+                f"  {telemetry_id:<14} {item.value:9.3f} {item.unit:<4}"
+                f" src {item.source}  age {age_s:4.1f} s{tag}",
+                style=STALE_STYLE if stale else "",
+            )
         )
     return lines
 
 
-def _panel_lines(sim: Simulation, states: dict[str, str]) -> list[str]:
-    lines = ["PANEL — protection & switching (SCL address · device · state)"]
+def _panel_lines(sim: Simulation, states: dict[str, str]) -> list[Text]:
+    lines = [Text("PANEL — protection & switching (SCL address · device · state)")]
     for address in sorted(sim.address_map):
         for device_id in sim.address_map[address]:
             if device_id in states:
-                lines.append(f"  {address:<24} {device_id:<10} {states[device_id]}")
+                line = Text(f"  {address:<24} {device_id:<10} ")
+                line.append_text(_styled_state(states[device_id]))
+                lines.append(line)
     return lines
 
 
-def _feeder_tree_lines(sim: Simulation, states: dict[str, str]) -> list[str]:
-    """Live feeder trees: WDM diagram grammar + telemetry/panel annotations."""
+def _feeder_tree_lines(sim: Simulation, states: dict[str, str]) -> list[Text]:
+    """Live feeder trees: WDM diagram grammar + telemetry/panel annotations.
+
+    De-energized segments (OPEN/IDLE devices, unreported buses) dim per the
+    color contract; a TRIPPED branch is a caution the schematic must shout.
+    """
     node_v: dict[str, float] = {}
     for spec in sim.ship.devices:  # map measured node -> latest voltage report
         item = sim.telemetry.read(spec.id)
@@ -88,34 +115,63 @@ def _feeder_tree_lines(sim: Simulation, states: dict[str, str]) -> list[str]:
             others = [n for p, n in spec.ports.items() if p != port]
             on_node.setdefault(node, []).append((spec.id, others[0] if len(others) == 1 else ""))
 
-    lines = ["FEEDER TREES — live (voltages are transducer reports)"]
+    lines = [Text("FEEDER TREES — live (voltages are transducer reports)")]
     for bus in sim.ship.nodes:
         if not bus.bus:
             continue
+        line = Text(f"  {bus.id.replace('.', ' ').upper()}  [{bus.id}]  ")
         volts = node_v.get(bus.id)
-        volts_txt = f"{volts:6.2f} V" if volts is not None else "--- ?  (no report)"
-        lines.append(f"  {bus.id.replace('.', ' ').upper()}  [{bus.id}]  {volts_txt}")
+        if volts is None:
+            line.append(f"--- {STALE_GLYPH}  (no report)", style=STALE_STYLE)
+        else:
+            line.append(f"{volts:6.2f} V")
+        lines.append(line)
         attached = on_node.get(bus.id, [])  # blueprint order (style guide rule 2)
         width = max((len(device_id) for device_id, _ in attached), default=0)
         for i, (device_id, other) in enumerate(attached):
             branch = "└──" if i == len(attached) - 1 else "├──"
-            state = states.get(device_id, "·")
-            tail = f"  → {other}" if other else ""
-            lines.append(f"   {branch} {device_id:<{width}}  {state:<12}{tail}")
+            state = states.get(device_id, STALE_GLYPH)
+            _, style = state_annotation(state)
+            line = Text(f"   {branch} {device_id:<{width}}  ")
+            cell = _styled_state(state)
+            line.append_text(cell)
+            line.append(" " * max(1, _STATE_CELL_W - len(cell.plain)))  # align the → tails
+            if other:
+                line.append(f"→ {other}", style=style)  # tail shares the segment's state
+            lines.append(line)
     return lines
 
 
-def render_eps(sim: Simulation) -> str:
-    """The SYS/EPS station text: caution line, measurements, panel, feeder trees."""
+def _join(sections: list[list[Text]]) -> Text:
+    """Sections of lines -> one Text, exactly one blank line between sections."""
+    out = Text()
+    separator = ""
+    for section in sections:
+        for line in section:
+            out.append(separator)
+            out.append_text(line)
+            separator = "\n"
+        separator = "\n\n"
+    return out
+
+
+def render_eps(sim: Simulation) -> Text:
+    """The SYS/EPS station: caution line, measurements, panel, feeder trees."""
     caution = sim.panel.active_messages()
     states = _device_states(sim)
+    if caution:
+        caution_line = Text(
+            f"{CAUTION_GLYPH} MASTER CAUTION: ACTIVE — {', '.join(caution)}", style=CAUTION_STYLE
+        )
+    else:
+        caution_line = Text("MASTER CAUTION: clear", style=OFF_STYLE)
     sections = [
-        [f"MASTER CAUTION: {'ACTIVE — ' + ', '.join(caution) if caution else 'clear'}"],
+        [caution_line],
         _measurement_lines(sim),
         _panel_lines(sim, states),
         _feeder_tree_lines(sim, states),
     ]
-    return "\n\n".join("\n".join(lines) for lines in sections)
+    return _join(sections)
 
 
 class EpsStation(VerticalScroll):
@@ -129,7 +185,7 @@ class EpsStation(VerticalScroll):
         yield Static(id="eps-text")
 
     def refresh_from_sim(self) -> None:
-        self.query_one("#eps-text", Static).update(Text(render_eps(self._sim)))
+        self.query_one("#eps-text", Static).update(render_eps(self._sim))
 
 
 # -- DOCS ----------------------------------------------------------------------
