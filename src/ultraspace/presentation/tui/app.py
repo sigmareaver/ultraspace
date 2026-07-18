@@ -17,7 +17,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Vertical
 from textual.suggester import SuggestFromList
-from textual.widgets import ContentSwitcher, Input, Static
+from textual.widgets import ContentSwitcher, Footer, Input, Static
 
 from ultraspace.content.manuals import ManualPage
 from ultraspace.interaction import Dispatcher
@@ -59,7 +59,8 @@ class UltraspaceApp(App[None]):
     AUTO_FOCUS = "#command"
     CSS = """
     #annunciators { dock: top; height: 1; }
-    #command-bar { dock: bottom; height: auto; }
+    #stations { height: 1fr; }
+    #command-bar { height: auto; }
     #result { max-height: 14; }
     #clock { height: 1; }
     #docs-list { width: 40%; max-width: 64; }
@@ -92,6 +93,9 @@ class UltraspaceApp(App[None]):
                 suggester=SuggestFromList(_suggestions(self.sim), case_sensitive=True),
                 id="command",
             )
+        # Clickable station-key bar (Textual renders BINDINGS; clicks simulate
+        # the key press). Mouse is convenience only — nothing requires it.
+        yield Footer(show_command_palette=False)
 
     def on_mount(self) -> None:
         self.sim.step(1)  # instruments report before the first look (teletype parity)

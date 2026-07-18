@@ -1,8 +1,9 @@
 """Textual pilot smoke tests (testing.md §2): deliberately thin.
 
 The TUI contains no logic worth deep testing (architecture rule), so these
-prove the wiring exists: stations mount, annunciators render, and the command
-bar round-trips SCL through the dispatcher (and therefore into the FDR).
+prove the wiring exists: stations mount, annunciators render, the station-key
+footer clicks through, and the command bar round-trips SCL through the
+dispatcher (and therefore into the FDR).
 Physics correctness lives in tests/conformance and tests/casualties.
 """
 
@@ -10,7 +11,8 @@ from __future__ import annotations
 
 import pytest
 from textual.pilot import Pilot
-from textual.widgets import ContentSwitcher, Input, OptionList, Static
+from textual.widgets import ContentSwitcher, Footer, Input, OptionList, Static
+from textual.widgets._footer import FooterKey  # only export path (textual 8.x)
 
 from ultraspace.content import ContentTree, load_manual_pages
 from ultraspace.presentation import UltraspaceApp
@@ -59,6 +61,26 @@ async def test_station_switching_on_function_keys(tree: ContentTree) -> None:
         assert switcher.current == "log"
         await pilot.press("f1")
         assert switcher.current == "eps"
+
+
+@pytest.mark.asyncio
+async def test_station_footer_is_a_clickable_key_bar(tree: ContentTree) -> None:
+    app = make_app(tree)
+    async with app.run_test(size=(132, 43)) as pilot:
+        await pilot.pause()
+        app.query_one(Footer)
+        keys = {key.key: key for key in app.query(FooterKey)}
+        assert {key: keys[key].description for key in keys} == {
+            "f1": "SYS/EPS",
+            "f7": "DOCS",
+            "f8": "LOG",
+        }
+        switcher = app.query_one("#stations", ContentSwitcher)
+        for key, station in (("f8", "log"), ("f7", "docs"), ("f1", "eps")):
+            await pilot.click(keys[key])
+            await pilot.pause()
+            assert switcher.current == station
+        assert app.query_one(Input).has_focus  # mouse never steals the keyboard
 
 
 @pytest.mark.asyncio
