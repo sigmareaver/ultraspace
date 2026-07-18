@@ -89,11 +89,11 @@ checklist lives there; walk it before declaring anything finished.
 
 - **M0 complete**: docs corpus v0.2; kernel (clock/rng/scheduler/events) implemented
   and tested; CI + Makefile operational.
-- **M1 in progress**: EPS design spec (`docs/design/systems/ata-24-eps.md`), content
-  pipeline (part/ship/procedure schemas + validate CLI), electrical solver, TB-1
-  devices/telemetry/annunciators, SCL v1 + procedure runner, SOM Ch 24 + conformance
-  + casualty suites, teletype client (`uv run python -m ultraspace run`). Runtime
-  deps now: pydantic, PyYAML, textual.
+- **M1 complete** (2026-07-18): EPS design spec (`docs/design/systems/ata-24-eps.md`),
+  content pipeline (part/ship/procedure schemas + validate CLI), electrical solver,
+  TB-1 devices/telemetry/annunciators, SCL v1 + procedure runner, SOM Ch 24 +
+  conformance + casualty suites, teletype client (`uv run python -m ultraspace run`).
+  Runtime deps now: pydantic, PyYAML, textual.
 - **M1 also done**: WDM generator pipeline (`make generate` / `make generate-check`;
   committed output in `data/manuals/*/generated/`, no-drift gate in CI) + diagram
   style guide (`data/manuals/style-guide.md`); `tools/check_imports.py` +
@@ -106,10 +106,12 @@ checklist lives there; walk it before declaring anything finished.
   binder HTML export (`make binder`, mkdocs-material dev dep); vignette playtest
   (docs/process/playtests/2026-07-14-m1-vignette.md). ADR-0006 accepted (diegetic
   displays / MFC-as-part; pane fence binds designers, not players).
-- **M1 open gate**: stranger-with-the-binder playtest (manual-naive human). TUI
+- **M1 gate closed 2026-07-18**: stranger-with-the-binder playtest passed, zero
+  issues (`docs/process/playtests/2026-07-18-stranger-with-the-binder.md`). TUI
   polish landed 2026-07-17: clickable station-key footer (Textual `Footer`) +
   semantic color contract (`presentation/tui/palette.py`; mapping in
-  `data/manuals/style-guide.md`).
+  `data/manuals/style-guide.md`). Next up: M2 — Symptoms & Suspects
+  (`docs/process/roadmap.md`).
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline

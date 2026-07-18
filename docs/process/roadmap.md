@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: Living document · Last updated: 2026-07-17 · Owner: process
+Status: Living document · Last updated: 2026-07-18 · Owner: process
 Related: [workflow.md](workflow.md), [../vision.md](../vision.md)
 
 Milestones are defined by **acceptance vignettes** (playable proofs), not feature lists.
@@ -15,7 +15,7 @@ engineering/process documentation; CI skeleton; project scaffolding.
 **Acceptance:** `make check` green; `ultraspace selftest` runs N deterministic ticks
 and prints a stable state digest; docs index complete.
 
-## M1 — First Light (EPS vertical slice) — FEATURE-COMPLETE (one gate open)
+## M1 — First Light (EPS vertical slice) ✅ (closed 2026-07-18)
 
 The whole concept proven on one chapter: **cold & dark TB-1/Kestrel to powered, by
 manual, in the TUI.**
@@ -29,9 +29,8 @@ conformance ✅ · manual binder HTML export (`make binder`) ✅ · vignette pla
 (maintainer solo, [playtests/2026-07-14-m1-vignette.md](playtests/2026-07-14-m1-vignette.md);
 found + fixed the undocumented tie-reset recovery) ✅ · TUI polish (2026-07-17):
 clickable station-key footer + semantic color contract (palette.py; mapping in the
-style guide) ✅.
-**Open before closing M1:** the true stranger-with-the-binder session (the vignette
-demands a manual-naive human).
+style guide) ✅ · stranger-with-the-binder playtest (2026-07-18, manual-naive human,
+zero issues, [playtests/2026-07-18-stranger-with-the-binder.md](playtests/2026-07-18-stranger-with-the-binder.md)) ✅.
 
 - Content pipeline (schemas, loader, validation, generators) with EPS parts + Kestrel
   blueprint (EPS subset).
