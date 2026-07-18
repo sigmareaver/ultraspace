@@ -106,8 +106,10 @@ checklist lives there; walk it before declaring anything finished.
   binder HTML export (`make binder`, mkdocs-material dev dep); vignette playtest
   (docs/process/playtests/2026-07-14-m1-vignette.md). ADR-0006 accepted (diegetic
   displays / MFC-as-part; pane fence binds designers, not players).
-- **M1 open gate**: stranger-with-the-binder playtest (manual-naive human); TUI
-  polish (station-key footer, semantic color contract completion).
+- **M1 open gate**: stranger-with-the-binder playtest (manual-naive human). TUI
+  polish landed 2026-07-17: clickable station-key footer (Textual `Footer`) +
+  semantic color contract (`presentation/tui/palette.py`; mapping in
+  `data/manuals/style-guide.md`).
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline

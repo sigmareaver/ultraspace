@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: Living document · Last updated: 2026-07-14 · Owner: process
+Status: Living document · Last updated: 2026-07-17 · Owner: process
 Related: [workflow.md](workflow.md), [../vision.md](../vision.md)
 
 Milestones are defined by **acceptance vignettes** (playable proofs), not feature lists.
@@ -27,11 +27,11 @@ Textual TUI v1 (SYS/EPS + DOCS + LOG stations, annunciator row, command bar) ✅
 Kestrel blueprint (EPS subset: BUS B, split batteries, cross-tie) + SOM 24-30-03/04 +
 conformance ✅ · manual binder HTML export (`make binder`) ✅ · vignette playtest
 (maintainer solo, [playtests/2026-07-14-m1-vignette.md](playtests/2026-07-14-m1-vignette.md);
-found + fixed the undocumented tie-reset recovery) ✅.
+found + fixed the undocumented tie-reset recovery) ✅ · TUI polish (2026-07-17):
+clickable station-key footer + semantic color contract (palette.py; mapping in the
+style guide) ✅.
 **Open before closing M1:** the true stranger-with-the-binder session (the vignette
-demands a manual-naive human); TUI polish riding along — clickable station-key footer,
-finish the semantic color contract (glyph-redundant state colors, mapping in the
-style guide).
+demands a manual-naive human).
 
 - Content pipeline (schemas, loader, validation, generators) with EPS parts + Kestrel
   blueprint (EPS subset).
