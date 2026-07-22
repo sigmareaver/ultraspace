@@ -52,6 +52,11 @@ headlessly; pulling breaker 24-C7 mid-procedure produces honest downstream sympt
 
 The casualty loop end-to-end on EPS + Data + minimal Thermal.
 
+Progress 2026-07-18: data network increment 1 ✅ — DB-A on TB-1 + Kestrel
+(BC/RT, timeout/FAILED accounting, health telemetry, analyzer v1, `DATA BUS A
+DEGRADED`; spec [../design/systems/ata-42-data.md](../design/systems/ata-42-data.md);
+SOM 42-00-00/42-30-01 + conformance + casualty suites).
+
 - Data network (DB-A/B, RT/BC, message schedules, bus analyzer tool); thermal loop v1
   (enough to make electronics care about heat); L2 forensic tier for PDU boards
   (netlists, test points, DMM probing); stress model + fault scheduling; intermittents.

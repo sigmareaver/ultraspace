@@ -110,8 +110,15 @@ checklist lives there; walk it before declaring anything finished.
   issues (`docs/process/playtests/2026-07-18-stranger-with-the-binder.md`). TUI
   polish landed 2026-07-17: clickable station-key footer (Textual `Footer`) +
   semantic color contract (`presentation/tui/palette.py`; mapping in
-  `data/manuals/style-guide.md`). Next up: M2 — Symptoms & Suspects
-  (`docs/process/roadmap.md`).
+  `data/manuals/style-guide.md`).
+- **M2 in progress**: first feature = ATA 42 data network (the U4 vignette's
+  symptom surface). Increment 1 landed 2026-07-18: spec
+  `docs/design/systems/ata-42-data.md`; `networks/data.py` transaction ledger
+  (causality invariant); BC/RT devices with rail-voltage power gates; DB-A on
+  TB-1 + Kestrel (CB E2 = BC feed, CB A2 = RT 12); analyzer v1 (`data.db.a
+  read`); `DATA BUS A DEGRADED`; SOM 42-00-00/42-30-01 + conformance/casualty
+  suites. Next increments: sensor transport onto the bus, stress/fault
+  scheduling, DB-B failover, FIM 42-11, MEL.
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline
