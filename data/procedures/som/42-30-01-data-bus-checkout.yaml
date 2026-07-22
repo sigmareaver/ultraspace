@@ -1,0 +1,18 @@
+schema: procedure/1
+id: som-42-30-01
+title: "Data Bus Checkout"
+manual_ref: "SOM 42-30-01"
+ship: core:tb-1
+steps:
+  - step: 1
+    scl: "eps cb.a2 close"
+    note: "RT 12 feed first (NOTE 1): no controller on line to miss it yet."
+  - step: 2
+    scl: "eps cb.e2 close"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 2.0
+    note: "BC publishes bus health once on line; 1.0 = every RT answering."
+  - step: 3
+    scl: "data.db.a read"
+    note: "Verify RT 12 OK, errors 0. A NO RESPONSE row is isolation data (42-00-00 §3)."

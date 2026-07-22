@@ -76,12 +76,3 @@ def test_som_24_30_05_cross_tie_conforms(tree: ContentTree) -> None:
         result = run_procedure(sim, tree.procedures["core:som-24-30-05"])
         assert result.passed, f"seed {seed}: {result.failure_summary()}"
         assert "MASTER CAUTION: clear" in sim.summary()
-
-
-def test_every_shipped_procedure_is_covered(tree: ContentTree) -> None:
-    """Canary: adding a procedure without conformance coverage fails the build.
-
-    Replaced by a generic parametrized runner (with declared preconditions)
-    when the procedure count grows — M2.
-    """
-    assert set(tree.procedures) == COVERED

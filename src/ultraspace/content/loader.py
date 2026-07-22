@@ -28,6 +28,9 @@ __all__ = ["ContentError", "ContentTree", "load_tree"]
 PACK = "core"  # M1: single built-in pack; packs/ namespacing lands with mod support
 GROUND_NODE = "gnd"
 
+#: Behaviors that publish telemetry without a `measures` field (BC health).
+_TELEMETRY_BEHAVIORS = ("bc",)
+
 _SCHEMAS: dict[str, type[PartSpec] | type[ShipSpec] | type[ProcedureSpec]] = {
     "part/1": PartSpec,
     "ship/1": ShipSpec,
@@ -211,9 +214,17 @@ def _validate_procedure_refs(tree: ContentTree) -> None:
         if ship is None:
             tree.errors.append(ContentError(pwhere, f"unknown ship {proc.ship!r}"))
             continue
-        xducer_ids = {d.id for d in ship.devices if d.measures is not None}
+        source_ids = {
+            device.id
+            for device in ship.devices
+            if device.measures is not None
+            or (
+                (part := tree.parts.get(device.part)) is not None
+                and part.behavior in _TELEMETRY_BEHAVIORS
+            )
+        }
         for step in proc.steps:
-            if step.expect_telemetry is not None and step.expect_telemetry not in xducer_ids:
+            if step.expect_telemetry is not None and step.expect_telemetry not in source_ids:
                 tree.errors.append(
                     ContentError(
                         pwhere,
