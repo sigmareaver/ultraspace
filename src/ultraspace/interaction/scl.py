@@ -49,8 +49,8 @@ class Dispatcher:
                 verb = words[k]
                 return self.sim.execute(address, verb, flags)
             if address in self._roots:
-                # System-level address: only summary read is defined at M1.
+                # System-level address: only summary read is defined at this level.
                 if k < len(words) and words[k] == "read":
-                    return CommandResult(True, self.sim.summary())
+                    return CommandResult(True, self.sim.summarize(address))
                 return refused(f"{address}: only 'read' is supported at system level")
         return refused(f"unknown address {words[0]!r} (try '<system> read' for a summary)")

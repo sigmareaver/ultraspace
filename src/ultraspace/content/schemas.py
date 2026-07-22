@@ -15,6 +15,7 @@ __all__ = [
     "REQUIRED_PARAMS",
     "REQUIRED_PORTS",
     "AnnunciatorSpec",
+    "DataBusSpec",
     "DeviceSpec",
     "NodeSpec",
     "PartSpec",
@@ -32,6 +33,8 @@ Behavior = Literal[
     "xducer_v",
     "xducer_i",
     "xducer_soc",
+    "bc",
+    "rt",
 ]
 
 #: Required `params` keys per behavior (units in key names, ADR-0004).
@@ -44,6 +47,8 @@ REQUIRED_PARAMS: dict[str, frozenset[str]] = {
     "xducer_v": frozenset({"sigma_v"}),
     "xducer_i": frozenset({"sigma_a"}),
     "xducer_soc": frozenset({"sigma_frac"}),
+    "bc": frozenset({"r_ohm", "min_v"}),
+    "rt": frozenset({"r_ohm", "min_v"}),
 }
 
 #: Required electrical `ports` per behavior (transducers attach via `measures`).
@@ -56,6 +61,8 @@ REQUIRED_PORTS: dict[str, frozenset[str]] = {
     "xducer_v": frozenset(),
     "xducer_i": frozenset(),
     "xducer_soc": frozenset(),
+    "bc": frozenset({"pos", "neg"}),
+    "rt": frozenset({"pos", "neg"}),
 }
 
 
@@ -93,6 +100,13 @@ class NodeSpec(_Model):
     bus: bool = False  # distribution bus: gets a feeder tree in the WDM, named in manuals
 
 
+class DataBusSpec(_Model):
+    """A data bus segment (ata-42-data.md). BC/RT devices attach via `data_bus`."""
+
+    id: str
+    name: str  # display name, e.g. "DB-A"
+
+
 class DeviceSpec(_Model):
     """A placed device instance."""
 
@@ -102,6 +116,7 @@ class DeviceSpec(_Model):
     measures: str | None = None  # xducer_v: node id; xducer_i/xducer_soc: device id
     scl: str | None = None  # SCL address (may be shared, e.g. V+I xducers)
     interlock_open: str | None = None  # device id that must be OPEN (precharge law)
+    data_bus: str | None = None  # bc/rt: data bus id this device attaches to
     params: dict[str, float] = Field(default_factory=dict)  # instance overrides (soc_init)
 
 
@@ -123,13 +138,14 @@ class AnnunciatorSpec(_Model):
 
 
 class ShipSpec(_Model):
-    """`ship/1` — vessel blueprint (M1: electrical subset)."""
+    """`ship/1` — vessel blueprint (M1 electrical + M2 data-bus subset)."""
 
     schema_version: Literal["ship/1"] = Field(alias="schema")
     id: str
     name: str
     nodes: list[NodeSpec]
     devices: list[DeviceSpec]
+    data_buses: list[DataBusSpec] = Field(default_factory=list)
     annunciators: list[AnnunciatorSpec] = Field(default_factory=list)
 
 

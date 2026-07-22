@@ -1,4 +1,4 @@
-"""EPS device behaviors (M1 set, per docs/design/systems/ata-24-eps.md §2).
+"""Device behaviors: EPS (ata-24-eps.md §2) and data hardware (ata-42-data.md §9).
 
 Devices stamp the electrical network each tick and update their state after
 the solve. In-fiction failure is state (`tripped`), never an exception
@@ -7,20 +7,24 @@ the solve. In-fiction failure is state (`tripped`), never an exception
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from ultraspace.content.schemas import DeviceSpec, PartSpec
 from ultraspace.kernel import EventLog, SimClock
-from ultraspace.networks import ElectricalNetwork
+from ultraspace.networks import DataBus, ElectricalNetwork
 
 __all__ = [
     "Battery",
     "Breaker",
+    "BusController",
     "CommandResult",
     "Contactor",
+    "DataDevice",
     "ElectricalDevice",
     "Load",
     "Precharge",
+    "RemoteTerminal",
     "build_device",
 ]
 
@@ -294,16 +298,108 @@ class Load(ElectricalDevice):
         return (0.0, self.last_i_a**2 / self._g_s)
 
 
+class DataDevice(ElectricalDevice):
+    """Base for bus-attached data hardware (ata-42-data.md §9): an electrical
+    load whose *data function* gates on rail voltage (``min_v`` power gate).
+    The electrical side is a constant-resistance load; the data side is driven
+    by the ship's data task, after the electrical solve fixes rail truth."""
+
+    def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
+        super().__init__(spec, part)
+        self._g_s = 1.0 / part.params["r_ohm"]
+        self._min_v = part.params["min_v"]
+        self.energized = False  # rail truth from the last solve
+
+    def stamp(self, net: ElectricalNetwork) -> None:
+        net.stamp_conductance(self.spec.ports["pos"], self.spec.ports["neg"], self._g_s)
+
+    def after_solve(self, net: ElectricalNetwork, log: EventLog, tick: int) -> None:
+        self.last_i_a = net.branch_current_a(
+            self.spec.ports["pos"], self.spec.ports["neg"], self._g_s
+        )
+        self.energized = net.voltage_v(self.spec.ports["pos"]) >= self._min_v
+
+    def powers_w(self, net: ElectricalNetwork) -> tuple[float, float]:
+        return (0.0, self.last_i_a**2 / self._g_s)
+
+
+class RemoteTerminal(DataDevice):
+    """RT: answers BC status polls while energized (faults arrive with the
+    stress model — stuck-dominant is a transceiver state, spec §3 ext.)."""
+
+    kind = "rt"
+
+    def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
+        super().__init__(spec, part)
+        self.address = int(spec.params["rt_address"])  # loader-validated 0..31
+
+    def answers_poll(self) -> bool:
+        return self.energized
+
+
+class BusController(DataDevice):
+    """BC: owns a bus's cyclic schedule. The ship's data task runs the polls;
+    this device supplies the power gate, the telemetry surface (health
+    fraction), and the operator read (the bus table — analyzer v1)."""
+
+    kind = "bc"
+
+    def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
+        super().__init__(spec, part)
+        self._bus: DataBus | None = None  # bound at assembly
+
+    def bind(self, bus: DataBus) -> None:
+        self._bus = bus
+
+    @property
+    def bus(self) -> DataBus:
+        assert self._bus is not None  # bound at assembly
+        return self._bus
+
+    def observe(self) -> str:
+        if not self.energized:
+            return f"{self.id}: OFF (bus controller unpowered)"
+        state = "DEGRADED" if self.bus.degraded else "HEALTHY"
+        return f"{self.id}: ON AIR — {self.bus.id} {state}"
+
+    def execute(self, verb: str, flags: set[str]) -> CommandResult:
+        if verb == "read":
+            return CommandResult(True, self._readout())
+        return refused(f"{self.id}: verb {verb!r} not supported")
+
+    def _readout(self) -> str:
+        """The analyzer surface: BC state + per-RT table (BC's own view only —
+        an RT that does not answer is NO RESPONSE, never a root cause)."""
+        if not self.energized:
+            return f"{self.id}: --- NO DATA (bus controller unpowered)"
+        assert self._bus is not None
+        bus = self._bus
+        lines = [self.observe(), "  RT   STATE             ERRORS"]
+        for address in bus.rt_addresses():
+            rt = bus.rt(address)
+            if rt.answered_last:
+                word = "OK"
+            elif rt.consec_timeouts:
+                word = f"NO RESPONSE ({rt.consec_timeouts}x)"
+            else:
+                word = "NO DATA"  # never polled (BC just energized)
+            lines.append(f"  {address:<4} {word:<18} {rt.error_total}")
+        return "\n".join(lines)
+
+
 def build_device(spec: DeviceSpec, part: PartSpec, dt_s: float) -> ElectricalDevice:
     """Instantiate the behavior class for an electrical device spec."""
     if part.behavior == "battery":
         return Battery(spec, part, dt_s)
-    if part.behavior == "contactor":
-        return Contactor(spec, part)
-    if part.behavior == "breaker":
-        return Breaker(spec, part)
-    if part.behavior == "precharge":
-        return Precharge(spec, part)
-    if part.behavior == "load":
-        return Load(spec, part)
-    raise ValueError(f"not an electrical behavior: {part.behavior}")
+    builders: dict[str, Callable[[DeviceSpec, PartSpec], ElectricalDevice]] = {
+        "contactor": Contactor,
+        "breaker": Breaker,
+        "precharge": Precharge,
+        "load": Load,
+        "bc": BusController,
+        "rt": RemoteTerminal,
+    }
+    builder = builders.get(part.behavior)
+    if builder is None:
+        raise ValueError(f"not an electrical behavior: {part.behavior}")
+    return builder(spec, part)

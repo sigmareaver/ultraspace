@@ -110,6 +110,7 @@ def _validate_refs(tree: ContentTree) -> None:
 def _validate_ship_refs(tree: ContentTree, ship_id: str, ship: ShipSpec) -> None:
     node_ids = {node.id for node in ship.nodes} | {GROUND_NODE}
     device_ids = {device.id for device in ship.devices}
+    bus_ids = {bus.id for bus in ship.data_buses}
     where = f"ship {ship_id}"
 
     def err(message: str) -> None:
@@ -119,6 +120,8 @@ def _validate_ship_refs(tree: ContentTree, ship_id: str, ship: ShipSpec) -> None
         err("duplicate node ids")
     if len(device_ids) != len(ship.devices):
         err("duplicate device ids")
+    if len(bus_ids) != len(ship.data_buses):
+        err("duplicate data bus ids")
 
     for device in ship.devices:
         part = tree.parts.get(device.part)
@@ -127,9 +130,50 @@ def _validate_ship_refs(tree: ContentTree, ship_id: str, ship: ShipSpec) -> None
             continue
         _validate_device_refs(err, device, part.behavior, node_ids, device_ids)
 
+    _validate_data_bus_refs(err, ship, bus_ids, tree)
+
     for ann in ship.annunciators:
         if ann.telemetry not in device_ids:
             err(f"annunciator {ann.id!r}: unknown telemetry source {ann.telemetry!r}")
+
+
+def _validate_data_bus_refs(
+    err: Callable[[str], None],
+    ship: ShipSpec,
+    bus_ids: set[str],
+    tree: ContentTree,
+) -> None:
+    """ata-42-data.md §9: one BC per bus; RT addresses unique per bus, 0-31."""
+    bcs_per_bus: dict[str, int] = dict.fromkeys(bus_ids, 0)
+    rt_addresses: dict[str, set[int]] = {bus_id: set() for bus_id in bus_ids}
+    for device in ship.devices:
+        part = tree.parts.get(device.part)
+        if part is None:
+            continue  # unknown part already reported
+        if part.behavior not in ("bc", "rt"):
+            if device.data_bus is not None:
+                err(f"device {device.id!r}: 'data_bus' invalid for behavior {part.behavior}")
+            continue
+        if device.data_bus is None:
+            err(f"device {device.id!r} ({part.behavior}): missing 'data_bus'")
+            continue
+        if device.data_bus not in bus_ids:
+            err(f"device {device.id!r}: unknown data bus {device.data_bus!r}")
+            continue
+        if part.behavior == "bc":
+            bcs_per_bus[device.data_bus] += 1
+            continue
+        raw_address = device.params.get("rt_address")
+        if raw_address is None or not raw_address.is_integer() or not 0 <= raw_address <= 31:
+            err(f"rt {device.id!r}: params.rt_address must be an integer in 0..31")
+            continue
+        address = int(raw_address)
+        if address in rt_addresses[device.data_bus]:
+            err(f"rt {device.id!r}: address {address} already used on {device.data_bus}")
+        rt_addresses[device.data_bus].add(address)
+    for bus_id, count in sorted(bcs_per_bus.items()):
+        if count != 1:
+            err(f"data bus {bus_id!r}: needs exactly one BC, has {count}")
 
 
 def _validate_device_refs(
