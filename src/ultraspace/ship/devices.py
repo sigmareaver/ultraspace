@@ -324,17 +324,29 @@ class DataDevice(ElectricalDevice):
 
 
 class RemoteTerminal(DataDevice):
-    """RT: answers BC status polls while energized (faults arrive with the
-    stress model — stuck-dominant is a transceiver state, spec §3 ext.)."""
+    """RT: answers BC status polls while energized.
+
+    Fault state (ata-42-data.md §6): `stuck_dominant` — the SEU latch-up
+    signature, a parasitic conduction path. It holds while the terminal is
+    powered (and jams the bus medium, computed by the data task) and clears
+    on power removal, logged as `fault-cleared`. State, never an exception
+    (Iron Law 7).
+    """
 
     kind = "rt"
 
     def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
         super().__init__(spec, part)
         self.address = int(spec.params["rt_address"])  # loader-validated 0..31
+        self.stuck_dominant = False
 
-    def answers_poll(self) -> bool:
-        return self.energized
+    def after_solve(self, net: ElectricalNetwork, log: EventLog, tick: int) -> None:
+        super().after_solve(net, log, tick)
+        if self.stuck_dominant and not self.energized:
+            self.stuck_dominant = False
+            log.append(
+                tick, self.id, "fault-cleared", {"mode": "stuck_dominant", "by": "power-removal"}
+            )
 
 
 class BusController(DataDevice):

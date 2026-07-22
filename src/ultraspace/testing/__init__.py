@@ -1,17 +1,46 @@
-"""Raw-state inspection for tests and dev tools — the ONLY No-God-View bypass.
+"""Raw-state inspection and fault injection for tests and dev tools — the
+ONLY No-God-View bypass.
 
 Importing this module from presentation/world/interaction is forbidden
 (Iron Law 2; mechanical enforcement via tools/check_imports.py at M1+).
-tests/casualties/ must not use it either: those tests experience faults
-through telemetry, like a player.
+tests/casualties/ may import ONLY `inject_fault` — to insert the fault;
+every assertion there stays on telemetry, SCL, and panel observation
+(testing.md class 5: inject F, then experience it like a player).
 """
 
 from __future__ import annotations
 
-from ultraspace.ship.devices import ElectricalDevice
+from ultraspace.ship.devices import ElectricalDevice, RemoteTerminal
 from ultraspace.ship.sim import Simulation
 
-__all__ = ["raw_bus_voltage_v", "raw_device", "raw_power_audit_w"]
+__all__ = ["inject_fault", "raw_bus_voltage_v", "raw_device", "raw_power_audit_w"]
+
+#: Fault modes the console knows (ata-42-data.md §6; grows with the stress model).
+_FAULT_MODES = ("stuck_dominant",)
+
+
+def inject_fault(sim: Simulation, device_id: str, mode: str) -> None:
+    """Fault-injection console: set fault state on a device and log it.
+
+    Injection is journal-external (issuer `testing`, like an SCL command is
+    `scl`) and never surfaces to the operator live — the player discovers
+    the fault through symptoms; FDR review reconstructs the cause.
+    """
+    if mode not in _FAULT_MODES:
+        raise ValueError(f"unknown fault mode {mode!r} (have {sorted(_FAULT_MODES)})")
+    if device_id not in sim.devices:
+        raise ValueError(f"unknown device {device_id!r}")
+    device = sim.devices[device_id]
+    if mode == "stuck_dominant":
+        if not isinstance(device, RemoteTerminal):
+            raise ValueError(f"{device_id!r}: stuck_dominant targets a remote terminal")
+        device.stuck_dominant = True
+    sim.log.append(
+        sim.clock.tick_index,
+        "testing",
+        "fault-injected",
+        {"device": device_id, "mode": mode},
+    )
 
 
 def raw_bus_voltage_v(sim: Simulation, node: str) -> float:

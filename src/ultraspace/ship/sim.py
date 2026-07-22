@@ -110,13 +110,17 @@ class Simulation:
 
         Runs after the electrical solve so rail truth (``energized``) is fresh.
         An unpowered BC issues no polls at all — the ledger stays untouched.
+        A stuck-dominant RT jams the medium for as long as it is powered:
+        *every* transaction on its bus fails that tick (the U4 fault).
         """
         for bus_id, bus in self.data_buses.items():
             bc = self._bcs.get(bus_id)
             if bc is None or not bc.energized:
                 continue
-            for rt in self._rts_by_bus[bus_id]:
-                bus.poll(rt.address, rt.answers_poll())
+            rts = self._rts_by_bus[bus_id]
+            jammed = any(rt.stuck_dominant and rt.energized for rt in rts)
+            for rt in rts:
+                bus.poll(rt.address, rt.energized and not jammed)
 
     def _instruments_task(self, tick: int) -> None:
         # M1: transducers are rig-powered (TB-1 is a breadboard); they move onto
