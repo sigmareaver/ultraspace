@@ -96,9 +96,7 @@ def _run_step(
         # The tree worked as designed: record the unmet indication as a
         # taken branch, not a hold.
         return (
-            StepResult(
-                step.step, True, f"branch to step {step.on_fail_goto}: {indication.detail}"
-            ),
+            StepResult(step.step, True, f"branch to step {step.on_fail_goto}: {indication.detail}"),
             step.on_fail_goto,
         )
     return indication, None
