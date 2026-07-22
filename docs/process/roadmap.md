@@ -56,6 +56,11 @@ Progress 2026-07-18: data network increment 1 ✅ — DB-A on TB-1 + Kestrel
 (BC/RT, timeout/FAILED accounting, health telemetry, analyzer v1, `DATA BUS A
 DEGRADED`; spec [../design/systems/ata-42-data.md](../design/systems/ata-42-data.md);
 SOM 42-00-00/42-30-01 + conformance + casualty suites).
+Progress 2026-07-19: fault model v1 ✅ — injected stuck-dominant RT (the U4
+fault) jams the bus; latch-up clears on power removal; procedure-runner
+branching (on_pass/on_fail_goto + verdict END); FIM 42-11 executable with
+per-suspect verdict-path conformance (a wrong FIM edit fails CI); RT 5 added
+(the one-dark vs all-dark diagnostic split).
 
 - Data network (DB-A/B, RT/BC, message schedules, bus analyzer tool); thermal loop v1
   (enough to make electronics care about heat); L2 forensic tier for PDU boards

@@ -117,8 +117,13 @@ checklist lives there; walk it before declaring anything finished.
   (causality invariant); BC/RT devices with rail-voltage power gates; DB-A on
   TB-1 + Kestrel (CB E2 = BC feed, CB A2 = RT 12); analyzer v1 (`data.db.a
   read`); `DATA BUS A DEGRADED`; SOM 42-00-00/42-30-01 + conformance/casualty
-  suites. Next increments: sensor transport onto the bus, stress/fault
-  scheduling, DB-B failover, FIM 42-11, MEL.
+  suites. Increment 2 landed 2026-07-19: fault model v1 — `stuck_dominant`
+  (U4 latch-up) jams the bus, clears on power removal (FDR-logged);
+  `ultraspace.testing.inject_fault` console; procedure-runner branching
+  (`on_pass/on_fail_goto`, `0` = verdict END); RT 5 on CB E3 (diagnostic
+  split); FIM 42-11 executable + verdict-path conformance. Next increments:
+  sensor transport onto the bus, stress/fault scheduling, DB-B failover,
+  FIM 42-12, MEL, thermal loop v1.
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline
