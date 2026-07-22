@@ -57,6 +57,8 @@ def run_procedure(sim: Simulation, proc: ProcedureSpec) -> ProcedureResult:
         if jumps > max_jumps:
             results.append(StepResult(step.step, False, "branch-loop guard tripped"))
             break
+        if goto == 0:
+            break  # verdict step: the tree terminated the checklist
         index = goto - 1  # steps are numbered 1..N in order (schema-validated)
     passed = bool(results) and all(r.ok for r in results)
     sim.log.append(
@@ -87,17 +89,23 @@ def _run_step(
     if step.expect_telemetry is None:
         return StepResult(step.step, True, detail), None
     indication = _await_indication(sim, step, detail)
+
+    def label(target: int) -> str:
+        return "end" if target == 0 else f"step {target}"
+
     if indication.ok and step.on_pass_goto is not None:
+        target = step.on_pass_goto
         return (
-            StepResult(step.step, True, f"{indication.detail}; branch to step {step.on_pass_goto}"),
-            step.on_pass_goto,
+            StepResult(step.step, True, f"{indication.detail}; branch to {label(target)}"),
+            target,
         )
     if not indication.ok and step.on_fail_goto is not None:
         # The tree worked as designed: record the unmet indication as a
         # taken branch, not a hold.
+        target = step.on_fail_goto
         return (
-            StepResult(step.step, True, f"branch to step {step.on_fail_goto}: {indication.detail}"),
-            step.on_fail_goto,
+            StepResult(step.step, True, f"branch to {label(target)}: {indication.detail}"),
+            target,
         )
     return indication, None
 

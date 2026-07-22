@@ -154,7 +154,8 @@ class StepSpec(_Model):
 
     Branching (FIM/QRH trees): when the expected indication is met,
     `on_pass_goto` jumps; when it is not met, `on_fail_goto` jumps instead of
-    holding. Targets are step numbers in the same procedure.
+    holding. Targets are step numbers in the same procedure; ``0`` ends the
+    procedure (a verdict step — nothing further to check).
     """
 
     step: int
@@ -203,6 +204,8 @@ class ProcedureSpec(_Model):
             raise ValueError("steps must be numbered 1..N in order")
         for step in self.steps:
             for target in (step.on_pass_goto, step.on_fail_goto):
-                if target is not None and (target == step.step or target not in numbers):
+                if target is not None and (
+                    target == step.step or (target != 0 and target not in numbers)
+                ):
                     raise ValueError(f"step {step.step}: invalid branch target {target}")
         return self

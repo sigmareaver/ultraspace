@@ -1,0 +1,65 @@
+schema: procedure/1
+id: fim-42-11
+title: "Data Bus Degraded — Stuck-Dominant Isolation"
+manual_ref: "FIM 42-11"
+ship: core:tb-1
+# The tree: jam signature → cycle each terminal feed in turn → the bus
+# recovers when the babbling terminal goes dark. The last cycled terminal
+# is the verdict. Branch steps carry the path; the step list is the trace.
+steps:
+  - step: 1
+    scl: "data.db.a read"
+    expect_telemetry: bc.a
+    expect_max: 0.0
+    within_s: 2.0
+    on_fail_goto: 8
+    note: "Confirm the jam signature: EVERY terminal NO RESPONSE (42-00-00 §3)."
+  - step: 2
+    scl: "eps cb.a2 open"
+    note: "Cycle RT 12's feed: OPEN."
+  - step: 3
+    wait_s: 1.0
+    note: "Hold 1 s — a latch-up clears only with power removed."
+  - step: 4
+    scl: "eps cb.a2 close"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 3.0
+    on_pass_goto: 10
+    on_fail_goto: 5
+    note: "CLOSE. Recovery here convicts RT 12."
+  - step: 5
+    scl: "eps cb.e3 open"
+    note: "Cycle RT 5's feed: OPEN."
+  - step: 6
+    wait_s: 1.0
+    note: "Hold 1 s."
+  - step: 7
+    scl: "eps cb.e3 close"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 3.0
+    on_pass_goto: 10
+    on_fail_goto: 9
+    note: "CLOSE. Recovery here convicts RT 5."
+  - step: 8
+    scl: "data.db.a read"
+    expect_telemetry: bc.a
+    expect_min: 0.5
+    within_s: 2.0
+    on_pass_goto: 0
+    note: "Not a whole-bus jam: one terminal dark = that terminal or its feed (FIM 42-12, pending)."
+  - step: 9
+    scl: "data.db.a read"
+    expect_telemetry: bc.a
+    expect_max: 0.5
+    within_s: 2.0
+    on_pass_goto: 0
+    note: "No recovery after every feed cycled: suspect the controller or the medium (FIM 42-12, pending)."
+  - step: 10
+    scl: "data.db.a read"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 2.0
+    on_pass_goto: 0
+    note: "VERDICT: the last cycled terminal was babbling (stuck-dominant). Board suspect — expect recurrence."
