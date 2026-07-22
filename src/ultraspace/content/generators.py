@@ -132,15 +132,43 @@ def _tail(ctx: _Ctx, device: DeviceSpec, port: str) -> str:
     return f"  → {other} → {', '.join(hop)}"  # ids only: style guide rule 3
 
 
-def _connections(ctx: _Ctx, node: str) -> str:
-    """device.port pairs, blueprint order; a homogeneous port factors out as a
-    prefix (``neg: bat1, …``) — the 92-column budget wins over uniformity
+def _connection_items(ctx: _Ctx, node: str) -> tuple[str | None, list[str]]:
+    """(shared-port prefix or None, connection items in blueprint order).
+
+    device.port pairs; a homogeneous port factors out as a prefix
+    (``neg: bat1, …``) — the 92-column budget wins over uniformity
     (style guide, wire list rule)."""
     conns = ctx.on_node.get(node, [])
     ports = {port for _, port in conns}
     if conns and len(ports) == 1:
-        return f"{ports.pop()}: " + ", ".join(d.id for d, _ in conns)
-    return ", ".join(f"{d.id}.{p}" for d, p in conns)
+        return ports.pop(), [d.id for d, _ in conns]
+    return None, [f"{d.id}.{p}" for d, p in conns]
+
+
+def _wire_rows(ctx: _Ctx, node: str, cap: str, *, label: str | None = None) -> list[str]:
+    """Table rows for one node, splitting connections across continuation
+    rows (marked ``↳``) at item boundaries when the budget demands — never
+    mid-item (style guide, wire list rule)."""
+    name = label if label is not None else node
+    prefix, items = _connection_items(ctx, node)
+    cell_prefix = f"{prefix}: " if prefix is not None else ""
+    chunks: list[str] = []
+    body = ""
+    for item in items:
+        candidate = f"{body}, {item}" if body else item
+        if body and len(f"| {name} | {cap} | {cell_prefix}{candidate} |") > _MAX_WIDTH:
+            chunks.append(body)
+            body = item
+        else:
+            body = candidate
+    chunks.append(body)
+    rows = []
+    for i, chunk in enumerate(chunks):
+        row = f"| {name if i == 0 else f'{name} ↳'} | {cap} | {cell_prefix}{chunk} |"
+        if len(row) > _MAX_WIDTH:
+            raise ValueError(f"generated line exceeds {_MAX_WIDTH} cols: {row!r}")
+        rows.append(row)
+    return rows
 
 
 def _wire_list(ctx: _Ctx) -> str:
@@ -148,8 +176,8 @@ def _wire_list(ctx: _Ctx) -> str:
     rows.append("| Node | Capacitance | Connections (device.port) |")
     rows.append("|---|---|---|")
     for node in ctx.ship.nodes:
-        rows.append(f"| {node.id} | {node.c_f * 1000:g} mF | {_connections(ctx, node.id)} |")
-    rows.append(f"| gnd (ref) | - | {_connections(ctx, GROUND_NODE)} |")
+        rows.extend(_wire_rows(ctx, node.id, f"{node.c_f * 1000:g} mF"))
+    rows.extend(_wire_rows(ctx, GROUND_NODE, "-", label="gnd (ref)"))
     return "\n".join(rows)
 
 

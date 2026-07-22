@@ -8,11 +8,14 @@ steps:
     scl: "eps cb.a2 close"
     note: "RT 12 feed first (NOTE 1): no controller on line to miss it yet."
   - step: 2
+    scl: "eps cb.e3 close"
+    note: "RT 5 feed (essential bus side)."
+  - step: 3
     scl: "eps cb.e2 close"
     expect_telemetry: bc.a
     expect_min: 1.0
     within_s: 2.0
     note: "BC publishes bus health once on line; 1.0 = every RT answering."
-  - step: 3
+  - step: 4
     scl: "data.db.a read"
-    note: "Verify RT 12 OK, errors 0. A NO RESPONSE row is isolation data (42-00-00 §3)."
+    note: "Verify RT 5 and RT 12 OK, errors 0. A NO RESPONSE row is isolation data (42-00-00 §3)."

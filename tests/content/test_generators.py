@@ -52,6 +52,27 @@ def test_wire_list_covers_every_node_and_ground(tree: ContentTree) -> None:
     assert "bat1.pos, ctr.bat1.a" in wdm
 
 
+def test_wire_list_continuation_loses_nothing(tree: ContentTree) -> None:
+    """The 92-column budget splits long connection cells across `↳` rows —
+    at item boundaries, with nothing dropped and nothing duplicated."""
+    wdm = generate_ship_wdm(tree, "core:uev-kestrel")
+    gnd_rows = [line for line in wdm.splitlines() if line.startswith("| gnd")]
+    assert any("↳" in row for row in gnd_rows)  # the split actually happened
+    joined = " ".join(gnd_rows)
+    grounded = [
+        "bat1",
+        "bat2",
+        "load.avionics",
+        "load.cabin",
+        "load.equipbay",
+        "bc.a",
+        "rt.12",
+        "rt.5",
+    ]
+    for device_id in grounded:
+        assert joined.count(device_id) == 1, device_id
+
+
 def test_load_list_traces_protection(tree: ContentTree) -> None:
     wdm = generate_ship_wdm(tree, "core:tb-1")
     # 28/13.07 = 2.1 A; 28/5.23 = 5.4 A (style guide: one decimal).

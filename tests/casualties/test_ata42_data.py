@@ -15,12 +15,13 @@ from ultraspace.ship import Simulation
 
 def powered_tb1_with_data(tree: ContentTree, seed: int = 42) -> tuple[Simulation, Dispatcher]:
     """EPS per SOM 24-30-01, then data hardware on line (SOM 42-30-01 order:
-    the RT feed before the BC, so the bus comes up HEALTHY)."""
+    both RT feeds before the BC, so the bus comes up HEALTHY)."""
     sim = Simulation(tree, "core:tb-1", master_seed=seed)
     result = run_procedure(sim, tree.procedures["core:som-24-30-01"])
     assert result.passed, result.failure_summary()
     d = Dispatcher(sim)
     d.execute_line("eps cb.a2 close")
+    d.execute_line("eps cb.e3 close")
     sim.step(1)
     d.execute_line("eps cb.e2 close")
     sim.step(2)
@@ -65,16 +66,17 @@ def test_losing_the_bc_silences_the_bus_honestly(tree: ContentTree) -> None:
     assert "MASTER CAUTION: clear" in d.execute_line("eps read").text
 
 
-def test_bc_up_before_rt_feed_annunciates_then_recovers(tree: ContentTree) -> None:
-    """Wrong order from SOM 42-30-01's NOTE: BC on with a dark RT degrades
+def test_bc_up_before_rt_feeds_annunciates_then_recovers(tree: ContentTree) -> None:
+    """Wrong order from SOM 42-30-01's NOTE: BC on with dark RTs degrades
     the bus within three polls — the honest cost of skipping the note."""
     sim = Simulation(tree, "core:tb-1", master_seed=42)
     result = run_procedure(sim, tree.procedures["core:som-24-30-01"])
     assert result.passed, result.failure_summary()
     d = Dispatcher(sim)
-    d.execute_line("eps cb.e2 close")  # BC first — the RT feed is still open
+    d.execute_line("eps cb.e2 close")  # BC first — both RT feeds still open
     sim.step(4)  # 3 misses to FAILED + the annunciator scan
     assert "DATA BUS A DEGRADED" in d.execute_line("eps read").text
     d.execute_line("eps cb.a2 close")
+    d.execute_line("eps cb.e3 close")
     sim.step(2)
     assert "DATA BUS A DEGRADED" not in d.execute_line("eps read").text

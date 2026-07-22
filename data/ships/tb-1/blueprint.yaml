@@ -5,7 +5,8 @@ name: "TB-1 Breadboard"
 # Topology: BAT1 -> contactor -> BUS E -> (tie + precharge) -> BUS A,
 # one breaker-fed load per bus. All switches start OPEN at cold & dark.
 # M2 (ata-42-data.md §2): one data bus DB-A — BC on essential feed CB E2,
-# RT 12 on CB A2, so both failure signatures are reachable by hand.
+# RT 12 on CB A2, RT 5 on CB E3; two RTs make the one-dark vs all-dark
+# diagnostic split decidable.
 
 nodes:
   - {id: bat1.term, c_f: 0.0002}
@@ -15,6 +16,7 @@ nodes:
   - {id: load.cabin.in, c_f: 0.0001}
   - {id: load.bc.in, c_f: 0.0001}
   - {id: load.rt12.in, c_f: 0.0001}
+  - {id: load.rt5.in, c_f: 0.0001}
 
 data_buses:
   - {id: db.a, name: DB-A}
@@ -69,6 +71,15 @@ devices:
     ports: {pos: load.rt12.in, neg: gnd}
     data_bus: db.a
     params: {rt_address: 12}
+  - id: cb.e3
+    part: core:cb-5
+    ports: {a: bus.e, b: load.rt5.in}
+    scl: eps.cb.e3
+  - id: rt.5
+    part: core:rt-1553
+    ports: {pos: load.rt5.in, neg: gnd}
+    data_bus: db.a
+    params: {rt_address: 5}
   - id: mt.bus.e.v
     part: core:xducer-v
     measures: bus.e
