@@ -63,6 +63,8 @@ approaches, using this template:
   management computers VMC-1/2, RTs embedded in LRUs across the ship.
 - Firmware simulated behaviorally: modes, watchdogs, fault flags, reload procedure.
 - The bus analyzer tool lives here; this system makes sensors-as-devices real.
+- Design doc: `design/systems/ata-42-data.md` (M2 entry gate; increment 1 = bus,
+  BC/RT, health, analyzer v1).
 
 ### Comms (Ch 23)
 - Channelized radios, antenna selection/pointing, link budget (range, occlusion),
