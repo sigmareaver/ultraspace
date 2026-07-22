@@ -41,19 +41,34 @@ def run_procedure(sim: Simulation, proc: ProcedureSpec) -> ProcedureResult:
     dispatcher = Dispatcher(sim)
     sim.log.append(sim.clock.tick_index, "procedure", "start", {"id": proc.id})
     results: list[StepResult] = []
-    for step in proc.steps:
-        result = _run_step(sim, dispatcher, step)
+    max_jumps = 2 * len(proc.steps)  # branch-loop guard: a tree, not a hamster wheel
+    jumps = 0
+    index = 0
+    while 0 <= index < len(proc.steps):
+        step = proc.steps[index]
+        result, goto = _run_step(sim, dispatcher, step)
         results.append(result)
         if not result.ok:
             break  # a real checklist holds at the failed step
-    passed = all(r.ok for r in results) and len(results) == len(proc.steps)
+        if goto is None:
+            index += 1
+            continue
+        jumps += 1
+        if jumps > max_jumps:
+            results.append(StepResult(step.step, False, "branch-loop guard tripped"))
+            break
+        index = goto - 1  # steps are numbered 1..N in order (schema-validated)
+    passed = bool(results) and all(r.ok for r in results)
     sim.log.append(
         sim.clock.tick_index, "procedure", "complete" if passed else "failed", {"id": proc.id}
     )
     return ProcedureResult(proc.id, passed, results)
 
 
-def _run_step(sim: Simulation, dispatcher: Dispatcher, step: StepSpec) -> StepResult:
+def _run_step(
+    sim: Simulation, dispatcher: Dispatcher, step: StepSpec
+) -> tuple[StepResult, int | None]:
+    """Run one step; return its result and an optional branch target."""
     if step.wait_s is not None:
         sim.step_s(step.wait_s)
         detail = f"waited {step.wait_s} s"
@@ -62,16 +77,31 @@ def _run_step(sim: Simulation, dispatcher: Dispatcher, step: StepSpec) -> StepRe
         result = dispatcher.execute_line(step.scl)
         if step.expect_refusal:
             if result.ok:
-                return StepResult(step.step, False, f"expected refusal, got: {result.text}")
+                return StepResult(step.step, False, f"expected refusal, got: {result.text}"), None
             detail = f"refused as expected: {result.text}"
         elif not result.ok:
-            return StepResult(step.step, False, result.text)
+            return StepResult(step.step, False, result.text), None
         else:
             detail = result.text
 
-    if step.expect_telemetry is not None:
-        return _await_indication(sim, step, detail)
-    return StepResult(step.step, True, detail)
+    if step.expect_telemetry is None:
+        return StepResult(step.step, True, detail), None
+    indication = _await_indication(sim, step, detail)
+    if indication.ok and step.on_pass_goto is not None:
+        return (
+            StepResult(step.step, True, f"{indication.detail}; branch to step {step.on_pass_goto}"),
+            step.on_pass_goto,
+        )
+    if not indication.ok and step.on_fail_goto is not None:
+        # The tree worked as designed: record the unmet indication as a
+        # taken branch, not a hold.
+        return (
+            StepResult(
+                step.step, True, f"branch to step {step.on_fail_goto}: {indication.detail}"
+            ),
+            step.on_fail_goto,
+        )
+    return indication, None
 
 
 def _await_indication(sim: Simulation, step: StepSpec, detail: str) -> StepResult:

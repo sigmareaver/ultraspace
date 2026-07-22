@@ -150,7 +150,12 @@ class ShipSpec(_Model):
 
 
 class StepSpec(_Model):
-    """One procedure step: exactly one action; optional expected indication."""
+    """One procedure step: exactly one action; optional expected indication.
+
+    Branching (FIM/QRH trees): when the expected indication is met,
+    `on_pass_goto` jumps; when it is not met, `on_fail_goto` jumps instead of
+    holding. Targets are step numbers in the same procedure.
+    """
 
     step: int
     scl: str | None = None
@@ -160,6 +165,8 @@ class StepSpec(_Model):
     expect_min: float | None = None
     expect_max: float | None = None
     within_s: float = 5.0
+    on_pass_goto: int | None = None
+    on_fail_goto: int | None = None
     note: str | None = None
 
     @model_validator(mode="after")
@@ -172,6 +179,10 @@ class StepSpec(_Model):
             self.expect_min is None and self.expect_max is None
         ):
             raise ValueError("expect_telemetry needs expect_min and/or expect_max")
+        if (self.on_pass_goto is not None or self.on_fail_goto is not None) and (
+            self.expect_telemetry is None
+        ):
+            raise ValueError("branch targets require expect_telemetry")
         return self
 
 
@@ -190,4 +201,8 @@ class ProcedureSpec(_Model):
         numbers = [s.step for s in self.steps]
         if numbers != list(range(1, len(numbers) + 1)):
             raise ValueError("steps must be numbered 1..N in order")
+        for step in self.steps:
+            for target in (step.on_pass_goto, step.on_fail_goto):
+                if target is not None and (target == step.step or target not in numbers):
+                    raise ValueError(f"step {step.step}: invalid branch target {target}")
         return self
