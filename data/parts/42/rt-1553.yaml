@@ -1,0 +1,12 @@
+schema: part/1
+id: rt-1553
+part_number: "42-110-001"
+name: "Data bus remote terminal, 1553 family"
+ata: 42
+tech_level: 0
+mass_kg: 0.9
+behavior: rt
+params:
+  r_ohm: 156.8   # 28^2 / 5 W input load
+  min_v: 20.0    # below this rail the terminal stops answering (power gate)
+docs: [som/42-00-00, som/42-30-01]

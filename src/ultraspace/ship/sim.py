@@ -181,7 +181,10 @@ class Simulation:
 
     def _read_one(self, device_id: str) -> str:
         if device_id in self.devices:
-            return self.devices[device_id].observe()  # panel observation
+            device = self.devices[device_id]
+            if isinstance(device, BusController):
+                return device.readout()  # the analyzer table, not just the one-liner
+            return device.observe()  # panel observation
         item = self.telemetry.read(device_id)
         if item is None:
             return f"{device_id}: --- NO DATA (no report yet)"

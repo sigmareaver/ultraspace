@@ -17,6 +17,7 @@ __all__ = ["generate_all", "generate_ship_wdm", "sync_generated"]
 
 _SWITCHING = ("contactor", "breaker", "precharge")
 _XDUCERS = ("xducer_v", "xducer_i", "xducer_soc")
+_LOADS = ("load", "bc", "rt")  # constant-resistance electrical loads (ata-42 §9)
 _MAX_WIDTH = 92  # style-guide print constraint
 
 _HEADER = """\
@@ -57,6 +58,8 @@ def _rating(part: PartSpec) -> str:
         return f"battery {p['emf_full_v']:g} V"
     if part.behavior == "load":
         return f"load {p['r_ohm']:g} ohm"
+    if part.behavior in ("bc", "rt"):
+        return f"data {part.behavior} {p['r_ohm']:g} ohm"
     return part.behavior
 
 
@@ -129,15 +132,24 @@ def _tail(ctx: _Ctx, device: DeviceSpec, port: str) -> str:
     return f"  → {other} → {', '.join(hop)}"  # ids only: style guide rule 3
 
 
+def _connections(ctx: _Ctx, node: str) -> str:
+    """device.port pairs, blueprint order; a homogeneous port factors out as a
+    prefix (``neg: bat1, …``) — the 92-column budget wins over uniformity
+    (style guide, wire list rule)."""
+    conns = ctx.on_node.get(node, [])
+    ports = {port for _, port in conns}
+    if conns and len(ports) == 1:
+        return f"{ports.pop()}: " + ", ".join(d.id for d, _ in conns)
+    return ", ".join(f"{d.id}.{p}" for d, p in conns)
+
+
 def _wire_list(ctx: _Ctx) -> str:
     rows = ["## Wire list {#wire-list}", ""]
     rows.append("| Node | Capacitance | Connections (device.port) |")
     rows.append("|---|---|---|")
     for node in ctx.ship.nodes:
-        conns = ", ".join(f"{d.id}.{p}" for d, p in ctx.on_node.get(node.id, []))
-        rows.append(f"| {node.id} | {node.c_f * 1000:g} mF | {conns} |")
-    gnd = ", ".join(f"{d.id}.{p}" for d, p in ctx.on_node.get(GROUND_NODE, []))
-    rows.append(f"| gnd (ref) | - | {gnd} |")
+        rows.append(f"| {node.id} | {node.c_f * 1000:g} mF | {_connections(ctx, node.id)} |")
+    rows.append(f"| gnd (ref) | - | {_connections(ctx, GROUND_NODE)} |")
     return "\n".join(rows)
 
 
@@ -147,7 +159,7 @@ def _load_list(ctx: _Ctx) -> str:
     rows.append("|---|---|---|---|---|---|")
     for device in ctx.ship.devices:
         part = ctx.part_of[device.id]
-        if part.behavior != "load":
+        if part.behavior not in _LOADS:
             continue
         r_ohm = part.params["r_ohm"]
         feeder = _protector(ctx, device)

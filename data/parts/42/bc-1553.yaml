@@ -1,0 +1,12 @@
+schema: part/1
+id: bc-1553
+part_number: "42-100-001"
+name: "Data bus controller, 1553 family"
+ata: 42
+tech_level: 0
+mass_kg: 1.8
+behavior: bc
+params:
+  r_ohm: 78.4    # 28^2 / 10 W input load
+  min_v: 20.0    # below this rail the controller is dark (power gate)
+docs: [som/42-00-00, som/42-30-01]

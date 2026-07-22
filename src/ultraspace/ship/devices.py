@@ -364,10 +364,10 @@ class BusController(DataDevice):
 
     def execute(self, verb: str, flags: set[str]) -> CommandResult:
         if verb == "read":
-            return CommandResult(True, self._readout())
+            return CommandResult(True, self.readout())
         return refused(f"{self.id}: verb {verb!r} not supported")
 
-    def _readout(self) -> str:
+    def readout(self) -> str:
         """The analyzer surface: BC state + per-RT table (BC's own view only —
         an RT that does not answer is NO RESPONSE, never a root cause)."""
         if not self.energized:

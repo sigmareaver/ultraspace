@@ -46,7 +46,10 @@ def test_wire_list_covers_every_node_and_ground(tree: ContentTree) -> None:
     for node in tree.ships["core:tb-1"].nodes:
         assert f"| {node.id} |" in wdm
     assert "| gnd (ref) | - |" in wdm
-    assert "bat1.neg" in wdm  # ground connections listed
+    # Ground connections listed; homogeneous port factored out (style guide).
+    assert "neg: bat1" in wdm
+    # Mixed-port nodes keep the device.port form.
+    assert "bat1.pos, ctr.bat1.a" in wdm
 
 
 def test_load_list_traces_protection(tree: ContentTree) -> None:

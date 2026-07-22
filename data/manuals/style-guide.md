@@ -57,7 +57,9 @@ Rules:
 
 - **Panel table**: SCL address · device · P/N · type · rating · from · to.
 - **Wire list**: node · capacitance · connections as `device.port`, comma-
-  separated, blueprint order. Ground row is always last and shows `(ref)`.
+  separated, blueprint order. When every connection on a node uses the same
+  port, the port factors out as a prefix (`neg: bat1, …`) — the 92-column
+  budget wins over uniformity. Ground row is always last and shows `(ref)`.
 - **Load list**: device · P/N · name · resistance · current @ 28 V ·
   protected-by (the upstream switching device).
 - **Instrumentation**: telemetry id · P/N · measures · unit · SCL address.

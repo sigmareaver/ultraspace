@@ -8,6 +8,7 @@ name: "UEV Kestrel"
 #   BAT2 -> ctr.bat2 -> BUS B
 #   BUS E <- (tie.b + pcu.b, cross-tie, normally OPEN) -> BUS B
 # Loads: avionics (E), cabin (A), equipment bay (B). All switches OPEN cold & dark.
+# M2 (ata-42-data.md §2): data bus DB-A — BC essential-fed on CB E2, RT 12 on CB A2.
 
 nodes:
   - {id: bat1.term, c_f: 0.0002}
@@ -18,6 +19,11 @@ nodes:
   - {id: load.avionics.in, c_f: 0.0001}
   - {id: load.cabin.in, c_f: 0.0001}
   - {id: load.equipbay.in, c_f: 0.0001}
+  - {id: load.bc.in, c_f: 0.0001}
+  - {id: load.rt12.in, c_f: 0.0001}
+
+data_buses:
+  - {id: db.a, name: DB-A}
 
 devices:
   - id: bat1
@@ -75,6 +81,24 @@ devices:
   - id: load.equipbay
     part: core:load-150w
     ports: {pos: load.equipbay.in, neg: gnd}
+  - id: cb.e2
+    part: core:cb-5
+    ports: {a: bus.e, b: load.bc.in}
+    scl: eps.cb.e2
+  - id: bc.a
+    part: core:bc-1553
+    ports: {pos: load.bc.in, neg: gnd}
+    data_bus: db.a
+    scl: data.db.a
+  - id: cb.a2
+    part: core:cb-5
+    ports: {a: bus.a, b: load.rt12.in}
+    scl: eps.cb.a2
+  - id: rt.12
+    part: core:rt-1553
+    ports: {pos: load.rt12.in, neg: gnd}
+    data_bus: db.a
+    params: {rt_address: 12}
   - id: mt.bus.e.v
     part: core:xducer-v
     measures: bus.e
@@ -120,3 +144,7 @@ annunciators:
     message: "BUS B UNDERVOLT"
     low: 24.0
     arm_above: 25.0
+  - id: ann.db.a.degraded
+    telemetry: bc.a          # BC health fraction (silent while BC dark)
+    message: "DATA BUS A DEGRADED"
+    low: 1.0                 # fires when any RT is declared FAILED
