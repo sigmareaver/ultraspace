@@ -28,7 +28,7 @@ def test_causality_and_health_over_arbitrary_traffic(pattern: list[list[bool]]) 
     """Each inner list is one tick: whether each RT (in registry order) answers."""
     bus = DataBus("db.a")
     for address in _ADDRESSES:
-        bus.register_rt(address)
+        bus.register_rt(address, f"rt.{address}")
     previous_errors = dict.fromkeys(_ADDRESSES, 0)
 
     for answers in pattern:

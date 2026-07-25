@@ -13,7 +13,7 @@ from ultraspace.networks.data import FAIL_AFTER_POLLS, DataBus
 
 def test_healthy_rt_answers_and_health_stays_full() -> None:
     bus = DataBus("db.a")
-    bus.register_rt(12)
+    bus.register_rt(12, "rt.12")
     for _ in range(5):
         bus.poll(12, answered=True)
     assert bus.rt(12).answered_last
@@ -24,7 +24,7 @@ def test_healthy_rt_answers_and_health_stays_full() -> None:
 
 def test_rt_declared_failed_after_three_consecutive_timeouts() -> None:
     bus = DataBus("db.a")
-    bus.register_rt(12)
+    bus.register_rt(12, "rt.12")
     for tick in range(FAIL_AFTER_POLLS):
         assert not bus.rt(12).failed  # not yet: declaration at the 3rd miss
         bus.poll(12, answered=False)
@@ -38,7 +38,7 @@ def test_rt_declared_failed_after_three_consecutive_timeouts() -> None:
 
 def test_single_miss_does_not_degrade_but_error_counter_remains() -> None:
     bus = DataBus("db.a")
-    bus.register_rt(12)
+    bus.register_rt(12, "rt.12")
     bus.poll(12, answered=False)  # one transient miss
     bus.poll(12, answered=True)  # recovers
     assert bus.rt(12).consec_timeouts == 0 and not bus.rt(12).failed
@@ -48,7 +48,7 @@ def test_single_miss_does_not_degrade_but_error_counter_remains() -> None:
 
 def test_failed_rt_recovers_on_first_good_reply() -> None:
     bus = DataBus("db.a")
-    bus.register_rt(12)
+    bus.register_rt(12, "rt.12")
     for _ in range(FAIL_AFTER_POLLS + 2):
         bus.poll(12, answered=False)
     assert bus.health_frac() == 0.0
@@ -62,7 +62,7 @@ def test_failed_rt_recovers_on_first_good_reply() -> None:
 def test_health_fraction_counts_only_failed_rts() -> None:
     bus = DataBus("db.a")
     for address in (4, 12, 30):
-        bus.register_rt(address)
+        bus.register_rt(address, f"rt.{address}")
     # RT 12 fails hard; RT 4 misses once (transient); RT 30 healthy.
     for _ in range(FAIL_AFTER_POLLS):
         bus.poll(4, answered=False)
@@ -82,6 +82,6 @@ def test_empty_bus_is_vacuously_healthy() -> None:
 
 def test_duplicate_rt_address_is_a_build_error() -> None:
     bus = DataBus("db.a")
-    bus.register_rt(12)
+    bus.register_rt(12, "rt.12")
     with pytest.raises(ValueError, match="duplicate RT address"):
-        bus.register_rt(12)
+        bus.register_rt(12, "rt.12")
