@@ -121,9 +121,13 @@ checklist lives there; walk it before declaring anything finished.
   (U4 latch-up) jams the bus, clears on power removal (FDR-logged);
   `ultraspace.testing.inject_fault` console; procedure-runner branching
   (`on_pass/on_fail_goto`, `0` = verdict END); RT 5 on CB E3 (diagnostic
-  split); FIM 42-11 executable + verdict-path conformance. Next increments:
-  sensor transport onto the bus, stress/fault scheduling, DB-B failover,
-  FIM 42-12, MEL, thermal loop v1.
+  split); FIM 42-11 executable + verdict-path conformance. Increment 3 landed
+  2026-07-20: harness depth — trunk/couplers/stubs with located fault state
+  (open/short), transformer-coupled containment, partition contiguity; DMM
+  ohms probe points (de-energize interlock); repair verbs; WDM 42 sheets;
+  FIM 42-12 executable with per-fault verdict paths; `expect_text` branching
+  in the runner. Next increments: sensor transport onto the bus, stress/fault
+  scheduling, DB-B failover, FIM 42-13, MEL, thermal loop v1.
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline
