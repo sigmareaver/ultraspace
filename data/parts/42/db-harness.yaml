@@ -1,0 +1,10 @@
+schema: part/1
+id: db-harness
+part_number: "42-130-001"
+name: "Data bus twinax run (trunk/stub)"
+ata: 42
+tech_level: 0
+mass_kg: 0.2
+behavior: harness_seg
+params: {}
+docs: [som/42-00-00, wdm/42]

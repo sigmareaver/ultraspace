@@ -10,13 +10,13 @@ every assertion there stays on telemetry, SCL, and panel observation
 
 from __future__ import annotations
 
-from ultraspace.ship.devices import ElectricalDevice, RemoteTerminal
+from ultraspace.ship.devices import ElectricalDevice, HarnessElement, RemoteTerminal
 from ultraspace.ship.sim import Simulation
 
 __all__ = ["inject_fault", "raw_bus_voltage_v", "raw_device", "raw_power_audit_w"]
 
 #: Fault modes the console knows (ata-42-data.md §6; grows with the stress model).
-_FAULT_MODES = ("stuck_dominant",)
+_FAULT_MODES = ("stuck_dominant", "dead", "open", "short")
 
 
 def inject_fault(sim: Simulation, device_id: str, mode: str) -> None:
@@ -31,10 +31,16 @@ def inject_fault(sim: Simulation, device_id: str, mode: str) -> None:
     if device_id not in sim.devices:
         raise ValueError(f"unknown device {device_id!r}")
     device = sim.devices[device_id]
-    if mode == "stuck_dominant":
-        if not isinstance(device, RemoteTerminal):
-            raise ValueError(f"{device_id!r}: stuck_dominant targets a remote terminal")
+    if mode in ("open", "short"):
+        if not isinstance(device, HarnessElement):
+            raise ValueError(f"{device_id!r}: {mode} targets harness hardware (coupler/segment)")
+        device.state = mode
+    elif not isinstance(device, RemoteTerminal):
+        raise ValueError(f"{device_id!r}: {mode} targets a remote terminal")
+    elif mode == "stuck_dominant":
         device.stuck_dominant = True
+    else:  # dead
+        device.dead = True
     sim.log.append(
         sim.clock.tick_index,
         "testing",

@@ -70,6 +70,7 @@ devices:
     part: core:rt-1553
     ports: {pos: load.rt12.in, neg: gnd}
     data_bus: db.a
+    scl: data.db.a.rt.12
     params: {rt_address: 12}
   - id: cb.e3
     part: core:cb-5
@@ -79,7 +80,37 @@ devices:
     part: core:rt-1553
     ports: {pos: load.rt5.in, neg: gnd}
     data_bus: db.a
+    scl: data.db.a.rt.5
     params: {rt_address: 5}
+  # DB-A harness (ata-42-data.md §2): bc.a — j1 — j2, RT 5 at j1, RT 12 at j2.
+  - id: j1
+    part: core:db-coupler
+    data_bus: db.a
+    scl: data.db.a.j1
+  - id: j2
+    part: core:db-coupler
+    data_bus: db.a
+    scl: data.db.a.j2
+  - id: seg.bc-j1
+    part: core:db-harness
+    data_bus: db.a
+    ends: {a: bc.a, b: j1}
+    scl: data.db.a.seg.bc-j1
+  - id: seg.j1-j2
+    part: core:db-harness
+    data_bus: db.a
+    ends: {a: j1, b: j2}
+    scl: data.db.a.seg.j1-j2
+  - id: stub.j1-rt5
+    part: core:db-harness
+    data_bus: db.a
+    ends: {a: j1, b: rt.5}
+    scl: data.db.a.stub.j1-rt5
+  - id: stub.j2-rt12
+    part: core:db-harness
+    data_bus: db.a
+    ends: {a: j2, b: rt.12}
+    scl: data.db.a.stub.j2-rt12
   - id: mt.bus.e.v
     part: core:xducer-v
     measures: bus.e

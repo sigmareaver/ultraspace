@@ -11,9 +11,9 @@ build. Formatting rules: data/manuals/style-guide.md.
 from __future__ import annotations
 
 from ultraspace.content.loader import GROUND_NODE, ContentTree
-from ultraspace.content.schemas import DeviceSpec, PartSpec, ShipSpec
+from ultraspace.content.schemas import DataBusSpec, DeviceSpec, PartSpec, ShipSpec
 
-__all__ = ["generate_all", "generate_ship_wdm", "sync_generated"]
+__all__ = ["generate_all", "generate_ship_wdm", "generate_ship_wdm42", "sync_generated"]
 
 _SWITCHING = ("contactor", "breaker", "precharge")
 _XDUCERS = ("xducer_v", "xducer_i", "xducer_soc")
@@ -238,12 +238,88 @@ def _parts_list(ctx: _Ctx) -> str:
     return "\n".join(rows)
 
 
+def generate_ship_wdm42(tree: ContentTree, ship_qid: str) -> str:
+    """WDM 42 — data-harness sheet: trunk order, stub taps, probe points.
+
+    This is the isolation map FIM 42-12 references; connectivity is always
+    generated truth (style guide), walked from the same blueprint the sim
+    assembles.
+    """
+    ship = tree.ships[ship_qid]
+    sections = [
+        _HEADER.format(ship_dir=ship.id),
+        f"# WDM 42 — Generated Data Sheets — {ship.name} ({ship_qid})",
+        *(_bus_sheet(tree, ship, bus) for bus in ship.data_buses),
+    ]
+    text = "\n\n".join(sections) + "\n"
+    for line in text.splitlines():
+        if len(line) > _MAX_WIDTH:
+            raise ValueError(f"generated line exceeds {_MAX_WIDTH} cols: {line!r}")
+    return text
+
+
+def _bus_sheet(tree: ContentTree, ship: ShipSpec, bus: DataBusSpec) -> str:
+    members: dict[str, str] = {}  # device id -> behavior
+    segments: list[tuple[str, str, str]] = []  # (segment id, end a, end b)
+    for device in ship.devices:
+        if device.data_bus != bus.id:
+            continue
+        part = tree.parts[device.part]
+        members[device.id] = part.behavior
+        if part.behavior == "harness_seg":
+            segments.append((device.id, device.ends["a"], device.ends["b"]))
+    bc = next(d for d, behavior in members.items() if behavior == "bc")
+    junctions = sorted(d for d, behavior in members.items() if behavior == "junction")
+
+    chain = [bc]  # trunk walk: BC outward, trunk segments only (linear by §9)
+    done: set[str] = set()
+    here = bc
+    while True:
+        onward = [
+            (seg, b if a == here else a)
+            for seg, a, b in segments
+            if seg not in done and here in (a, b) and members[b if a == here else a] != "rt"
+        ]
+        if not onward:
+            break
+        seg, here = onward[0]
+        done.add(seg)
+        chain.extend([seg, here])
+
+    def rt_label(rt_id: str) -> str:
+        device = next(d for d in ship.devices if d.id == rt_id)
+        return f"RT {device.params['rt_address']:g} ({rt_id})"
+
+    taps = [
+        f"{j} → {seg} → {rt_label(rt)}"
+        for seg, a, b in segments
+        for rt, j in ((a, b), (b, a))
+        if members.get(rt) == "rt"
+    ]
+    lines = [
+        f"## Data bus {bus.name} {{#bus-{bus.id}}}",
+        "",
+        f"Termination: {bus.termination_ohm:g} ohm at both ends (BC end and far end).",
+        "Stubs: transformer-coupled — a stub fault is contained to its terminal.",
+        "",
+        "```",
+        f"Trunk order (from the BC): {' — '.join(chain)} — (end)",
+        f"Stub taps: {'; '.join(taps)}",
+        f"DMM probe points (de-energized bus only): {', '.join(junctions)}",
+        "```",
+    ]
+    return "\n".join(lines)
+
+
 def generate_all(tree: ContentTree) -> dict[str, str]:
     """{relative path under data/manuals: content} for every ship, sorted."""
-    return {
-        f"wdm/24/generated/{tree.ships[qid].id}.md": generate_ship_wdm(tree, qid)
-        for qid in sorted(tree.ships)
-    }
+    out: dict[str, str] = {}
+    for qid in sorted(tree.ships):
+        ship = tree.ships[qid]
+        out[f"wdm/24/generated/{ship.id}.md"] = generate_ship_wdm(tree, qid)
+        if ship.data_buses:
+            out[f"wdm/42/generated/{ship.id}.md"] = generate_ship_wdm42(tree, qid)
+    return out
 
 
 def sync_generated(tree: ContentTree, *, check: bool) -> list[str]:

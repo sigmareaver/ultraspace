@@ -1,0 +1,10 @@
+schema: part/1
+id: db-coupler
+part_number: "42-120-001"
+name: "Data bus coupler, transformer-isolated"
+ata: 42
+tech_level: 0
+mass_kg: 0.3
+behavior: junction
+params: {}
+docs: [som/42-00-00, wdm/42]

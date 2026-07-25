@@ -18,10 +18,13 @@ __all__ = [
     "Battery",
     "Breaker",
     "BusController",
+    "BusJunction",
     "CommandResult",
     "Contactor",
     "DataDevice",
     "ElectricalDevice",
+    "HarnessElement",
+    "HarnessSegment",
     "Load",
     "Precharge",
     "RemoteTerminal",
@@ -65,6 +68,11 @@ class ElectricalDevice:
     def observe(self) -> str:
         """Physical panel observation (position/state), not telemetry."""
         return f"{self.id}: (no observable state)"
+
+    def read_result(self) -> CommandResult:
+        """The SCL `read` surface: panel observation by default; instruments
+        and probe points override (rich readouts, interlocked refusals)."""
+        return CommandResult(True, self.observe())
 
 
 class Battery(ElectricalDevice):
@@ -324,13 +332,12 @@ class DataDevice(ElectricalDevice):
 
 
 class RemoteTerminal(DataDevice):
-    """RT: answers BC status polls while energized.
+    """RT: answers BC status polls while energized, alive, and reachable.
 
     Fault state (ata-42-data.md §6): `stuck_dominant` — the SEU latch-up
-    signature, a parasitic conduction path. It holds while the terminal is
-    powered (and jams the bus medium, computed by the data task) and clears
-    on power removal, logged as `fault-cleared`. State, never an exception
-    (Iron Law 7).
+    signature; holds while powered, clears on power removal (FDR-logged).
+    `dead` — a silent module failure; cleared only by replacement (`repair`,
+    which also clears a latch-up — a new board has no parasitic path).
     """
 
     kind = "rt"
@@ -339,6 +346,15 @@ class RemoteTerminal(DataDevice):
         super().__init__(spec, part)
         self.address = int(spec.params["rt_address"])  # loader-validated 0..31
         self.stuck_dominant = False
+        self.dead = False
+        self._de_energized: Callable[[], bool] | None = None
+        self._log: EventLog | None = None
+        self._clock: SimClock | None = None
+
+    def bind(self, de_energized: Callable[[], bool], log: EventLog, clock: SimClock) -> None:
+        self._de_energized = de_energized
+        self._log = log
+        self._clock = clock
 
     def after_solve(self, net: ElectricalNetwork, log: EventLog, tick: int) -> None:
         super().after_solve(net, log, tick)
@@ -347,6 +363,24 @@ class RemoteTerminal(DataDevice):
             log.append(
                 tick, self.id, "fault-cleared", {"mode": "stuck_dominant", "by": "power-removal"}
             )
+
+    def execute(self, verb: str, flags: set[str]) -> CommandResult:
+        if verb != "repair":
+            return refused(f"{self.id}: verb {verb!r} not supported")
+        return self._repair()
+
+    def _repair(self) -> CommandResult:
+        """Module replacement (field form; MAINT attaches spares/time later)."""
+        assert self._de_energized is not None and self._log is not None and self._clock
+        bus_id = self.spec.data_bus
+        if not self._de_energized():
+            return refused(f"{self.id}: de-energize {bus_id} before working on it (FIM 42-12)")
+        if not self.dead and not self.stuck_dominant:
+            return refused(f"{self.id}: nothing to repair")
+        self.dead = False
+        self.stuck_dominant = False
+        self._log.append(self._clock.tick_index, self.id, "repair", {"result": "module replaced"})
+        return CommandResult(True, f"{self.id}: module replaced")
 
 
 class BusController(DataDevice):
@@ -375,9 +409,10 @@ class BusController(DataDevice):
         return f"{self.id}: ON AIR — {self.bus.id} {state}"
 
     def execute(self, verb: str, flags: set[str]) -> CommandResult:
-        if verb == "read":
-            return CommandResult(True, self.readout())
         return refused(f"{self.id}: verb {verb!r} not supported")
+
+    def read_result(self) -> CommandResult:
+        return CommandResult(True, self.readout())
 
     def readout(self) -> str:
         """The analyzer surface: BC state + per-RT table (BC's own view only —
@@ -399,6 +434,110 @@ class BusController(DataDevice):
         return "\n".join(lines)
 
 
+class HarnessElement(ElectricalDevice):
+    """Passive data-harness hardware (couplers, twinax runs): no electrical
+    stamp. Fault state lives in the bus model — the medium is the truth —
+    and the device is the operator surface: probe points and the `repair`
+    verb (ata-42-data.md §6). Field-form repair; MAINT attaches cost later."""
+
+    def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
+        # Attribute assignments must precede super().__init__: the base
+        # assigns self.state, which delegates to the (not yet bound) bus.
+        self._bus: DataBus | None = None
+        self._de_energized: Callable[[], bool] | None = None
+        self._log: EventLog | None = None
+        self._clock: SimClock | None = None
+        super().__init__(spec, part)
+
+    def bind(
+        self,
+        bus: DataBus,
+        de_energized: Callable[[], bool],
+        log: EventLog,
+        clock: SimClock,
+    ) -> None:
+        self._bus = bus
+        self._de_energized = de_energized
+        self._log = log
+        self._clock = clock
+
+    def stamp(self, net: ElectricalNetwork) -> None:
+        pass  # no electrical presence
+
+    @property
+    def state(self) -> str:
+        raise NotImplementedError  # junction/segment delegate to the medium
+
+    @state.setter
+    def state(self, value: str) -> None:
+        raise NotImplementedError
+
+    def execute(self, verb: str, flags: set[str]) -> CommandResult:
+        if verb != "repair":
+            return refused(f"{self.id}: verb {verb!r} not supported")
+        assert self._bus is not None and self._de_energized is not None
+        assert self._log is not None and self._clock is not None
+        if not self._de_energized():
+            return refused(
+                f"{self.id}: de-energize {self._bus.id} before working on it (FIM 42-12)"
+            )
+        if self.state == "ok":
+            return refused(f"{self.id}: nothing to repair")
+        self.state = "ok"
+        self._log.append(self._clock.tick_index, self.id, "repair", {"result": "fault cleared"})
+        return CommandResult(True, f"{self.id}: repaired — fault cleared")
+
+
+class BusJunction(HarnessElement):
+    """Bus coupler: trunk feed-through + stub taps, and the DMM probe point.
+    `read` is an ohms check per direction (ata-42 §6), interlocked on a
+    de-energized bus — real shop practice."""
+
+    kind = "junction"
+
+    @property
+    def state(self) -> str:
+        assert self._bus is not None  # bound at assembly
+        return self._bus.junction_state(self.id)
+
+    @state.setter
+    def state(self, value: str) -> None:
+        if self._bus is not None:  # pre-bind assignment (base __init__) drops
+            self._bus.set_junction_state(self.id, value)  # type: ignore[arg-type]
+
+    def observe(self) -> str:
+        return f"{self.id}: coupler (DMM probe point — WDM 42)"
+
+    def read_result(self) -> CommandResult:
+        assert self._bus is not None and self._de_energized is not None
+        if not self._de_energized():
+            return refused(f"{self.id}: de-energize {self._bus.id} before ohms checks (FIM 42-12)")
+        lines = [f"{self.id}: {self._bus.id} coupler — DMM across the pair (bus de-energized)"]
+        for seg_id, other, ohms in self._bus.ohms_at(self.id):
+            reading = "OL" if ohms is None else f"{ohms:.1f} ohm"
+            lines.append(f"  {seg_id} (toward {other}): {reading}")
+        return CommandResult(True, "\n".join(lines))
+
+
+class HarnessSegment(HarnessElement):
+    """A run of twinax (trunk or stub): the fault-capable medium itself."""
+
+    kind = "harness_seg"
+
+    @property
+    def state(self) -> str:
+        assert self._bus is not None  # bound at assembly
+        return self._bus.segment_state(self.id)
+
+    @state.setter
+    def state(self, value: str) -> None:
+        if self._bus is not None:  # pre-bind assignment (base __init__) drops
+            self._bus.set_segment_state(self.id, value)  # type: ignore[arg-type]
+
+    def observe(self) -> str:
+        return f"{self.id}: harness run {self.spec.ends['a']}-{self.spec.ends['b']} (WDM 42)"
+
+
 def build_device(spec: DeviceSpec, part: PartSpec, dt_s: float) -> ElectricalDevice:
     """Instantiate the behavior class for an electrical device spec."""
     if part.behavior == "battery":
@@ -410,6 +549,8 @@ def build_device(spec: DeviceSpec, part: PartSpec, dt_s: float) -> ElectricalDev
         "load": Load,
         "bc": BusController,
         "rt": RemoteTerminal,
+        "junction": BusJunction,
+        "harness_seg": HarnessSegment,
     }
     builder = builders.get(part.behavior)
     if builder is None:

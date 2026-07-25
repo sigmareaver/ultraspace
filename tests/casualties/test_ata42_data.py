@@ -104,6 +104,125 @@ def test_power_cycling_the_babbling_terminal_restores_the_bus(tree: ContentTree)
     assert " 0" not in rt12_row.split("OK")[-1]
 
 
+def _de_energize_db_a(d: Dispatcher, sim: Simulation) -> None:
+    for line in ("eps cb.e2 open", "eps cb.e3 open", "eps cb.a2 open"):
+        d.execute_line(line)
+        sim.step(1)
+
+
+def _re_energize_db_a(d: Dispatcher, sim: Simulation) -> None:
+    for line in ("eps cb.a2 close", "eps cb.e3 close", "eps cb.e2 close"):
+        d.execute_line(line)
+        sim.step(1)
+    sim.step(2)
+
+
+def test_dmm_refuses_on_a_live_bus(tree: ContentTree) -> None:
+    """Real shop practice: no ohms checks on a live bus (FIM 42-12's NOTE)."""
+    sim, d = powered_tb1_with_data(tree)
+    result = d.execute_line("data.db.a.j2 read")
+    assert not result.ok and "de-energize" in result.text
+    _de_energize_db_a(d, sim)
+    assert "2.1 ohm" in d.execute_line("data.db.a.j2 read").text
+
+
+def test_trunk_open_partitions_the_dark_zone_contiguously(tree: ContentTree) -> None:
+    """A break between the couplers: everything beyond goes dark from the
+    BC's chair, the near side keeps answering — and the DMM points at it."""
+    sim, d = powered_tb1_with_data(tree)
+    inject_fault(sim, "seg.j1-j2", "open")
+    sim.step(4)
+    table = d.execute_line("data.db.a read").text
+    rt5_row = next(line for line in table.splitlines() if " 5 " in line)
+    rt12_row = next(line for line in table.splitlines() if " 12 " in line)
+    assert "OK" in rt5_row and "NO RESPONSE" in rt12_row  # contiguous suffix
+    _de_energize_db_a(d, sim)
+    dmm = d.execute_line("data.db.a.j2 read").text
+    assert "seg.j1-j2 (toward j1): OL" in dmm
+    assert "stub.j2-rt12 (toward rt.12): 2.1 ohm" in dmm  # stub is innocent
+    d.execute_line("data.db.a.seg.j1-j2 repair")
+    _re_energize_db_a(d, sim)
+    assert "HEALTHY" in d.execute_line("data.db.a read").text
+
+
+def test_trunk_short_kills_the_bus_and_no_power_cycle_helps(tree: ContentTree) -> None:
+    """The other all-dark: like a jam, but cycling every feed restores
+    nothing — that is the tell — and the trunk reads ~0 ohm."""
+    sim, d = powered_tb1_with_data(tree)
+    inject_fault(sim, "seg.bc-j1", "short")
+    sim.step(4)
+    assert (
+        len(
+            [
+                line
+                for line in d.execute_line("data.db.a read").text.splitlines()
+                if "NO RESPONSE" in line
+            ]
+        )
+        == 2
+    )
+    # The 42-11 cure, honestly attempted: cycle each feed. Nothing.
+    for line in ("eps cb.a2 open", "eps cb.a2 close", "eps cb.e3 open", "eps cb.e3 close"):
+        d.execute_line(line)
+        sim.step(2)
+    assert "DEGRADED" in d.execute_line("data.db.a read").text
+    _de_energize_db_a(d, sim)
+    dmm = d.execute_line("data.db.a.j1 read").text
+    assert "seg.bc-j1 (toward bc.a): 0.0 ohm" in dmm
+    d.execute_line("data.db.a.seg.bc-j1 repair")
+    _re_energize_db_a(d, sim)
+    assert "HEALTHY" in d.execute_line("data.db.a read").text
+
+
+def test_stub_short_is_contained_and_the_dmm_says_where(tree: ContentTree) -> None:
+    """Transformer coupling earns its keep: a shorted stub takes down only
+    its own terminal, and the coupler tap reads ~0 while the trunk reads 78."""
+    sim, d = powered_tb1_with_data(tree)
+    inject_fault(sim, "stub.j2-rt12", "short")
+    sim.step(4)
+    table = d.execute_line("data.db.a read").text
+    rt5_row = next(line for line in table.splitlines() if " 5 " in line)
+    rt12_row = next(line for line in table.splitlines() if " 12 " in line)
+    assert "OK" in rt5_row and "NO RESPONSE" in rt12_row
+    _de_energize_db_a(d, sim)
+    dmm = d.execute_line("data.db.a.j2 read").text
+    assert "stub.j2-rt12 (toward rt.12): 0.0 ohm" in dmm
+    assert "seg.j1-j2 (toward j1): 78.0 ohm" in dmm
+    d.execute_line("data.db.a.stub.j2-rt12 repair")
+    _re_energize_db_a(d, sim)
+    assert "HEALTHY" in d.execute_line("data.db.a read").text
+
+
+def test_stub_open_and_dead_module_differ_only_in_the_stub(tree: ContentTree) -> None:
+    """Same symptom (one terminal dark, powered), same table — the coupler
+    tap splits them: OL for the broken stub, 2.1 ohm for the dead board."""
+    sim, d = powered_tb1_with_data(tree)
+    inject_fault(sim, "stub.j1-rt5", "open")
+    sim.step(4)
+    table = d.execute_line("data.db.a read").text
+    rt5_row = next(line for line in table.splitlines() if " 5 " in line)
+    rt12_row = next(line for line in table.splitlines() if " 12 " in line)
+    assert "NO RESPONSE" in rt5_row and "OK" in rt12_row
+    _de_energize_db_a(d, sim)
+    dmm = d.execute_line("data.db.a.j1 read").text
+    assert "stub.j1-rt5 (toward rt.5): OL" in dmm
+    d.execute_line("data.db.a.stub.j1-rt5 repair")
+    _re_energize_db_a(d, sim)
+    assert "HEALTHY" in d.execute_line("data.db.a read").text
+
+    inject_fault(sim, "rt.12", "dead")
+    sim.step(4)
+    assert "NO RESPONSE" in next(
+        line for line in d.execute_line("data.db.a read").text.splitlines() if " 12 " in line
+    )
+    _de_energize_db_a(d, sim)
+    dmm = d.execute_line("data.db.a.j2 read").text
+    assert "stub.j2-rt12 (toward rt.12): 2.1 ohm" in dmm  # stub good: the board
+    d.execute_line("data.db.a.rt.12 repair")
+    _re_energize_db_a(d, sim)
+    assert "HEALTHY" in d.execute_line("data.db.a read").text
+
+
 def test_bc_up_before_rt_feeds_annunciates_then_recovers(tree: ContentTree) -> None:
     """Wrong order from SOM 42-30-01's NOTE: BC on with dark RTs degrades
     the bus within three polls — the honest cost of skipping the note."""

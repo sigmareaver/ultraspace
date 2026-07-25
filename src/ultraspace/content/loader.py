@@ -140,43 +140,114 @@ def _validate_ship_refs(tree: ContentTree, ship_id: str, ship: ShipSpec) -> None
             err(f"annunciator {ann.id!r}: unknown telemetry source {ann.telemetry!r}")
 
 
+_DATA_BEHAVIORS = ("bc", "rt", "junction", "harness_seg")
+
+
+@dataclass
+class _DataBusAcc:
+    """Accumulators for data-bus cross-validation (per-bus keyed dicts)."""
+
+    bcs_per_bus: dict[str, int]
+    rt_addresses: dict[str, set[int]]
+    members: dict[str, dict[str, str]]
+    segments: dict[str, list[tuple[str, str]]]
+
+
 def _validate_data_bus_refs(
     err: Callable[[str], None],
     ship: ShipSpec,
     bus_ids: set[str],
     tree: ContentTree,
 ) -> None:
-    """ata-42-data.md §9: one BC per bus; RT addresses unique per bus, 0-31."""
-    bcs_per_bus: dict[str, int] = dict.fromkeys(bus_ids, 0)
-    rt_addresses: dict[str, set[int]] = {bus_id: set() for bus_id in bus_ids}
+    """ata-42-data.md §9: one BC per bus; RT addresses unique per bus, 0-31;
+    harness ends resolve to bus members; every member reachable from the BC."""
+    acc = _DataBusAcc(
+        bcs_per_bus=dict.fromkeys(bus_ids, 0),
+        rt_addresses={bus_id: set() for bus_id in bus_ids},
+        members={bus_id: {} for bus_id in bus_ids},
+        segments={bus_id: [] for bus_id in bus_ids},
+    )
     for device in ship.devices:
         part = tree.parts.get(device.part)
         if part is None:
             continue  # unknown part already reported
-        if part.behavior not in ("bc", "rt"):
-            if device.data_bus is not None:
-                err(f"device {device.id!r}: 'data_bus' invalid for behavior {part.behavior}")
-            continue
-        if device.data_bus is None:
-            err(f"device {device.id!r} ({part.behavior}): missing 'data_bus'")
-            continue
-        if device.data_bus not in bus_ids:
-            err(f"device {device.id!r}: unknown data bus {device.data_bus!r}")
-            continue
-        if part.behavior == "bc":
-            bcs_per_bus[device.data_bus] += 1
-            continue
-        raw_address = device.params.get("rt_address")
-        if raw_address is None or not raw_address.is_integer() or not 0 <= raw_address <= 31:
-            err(f"rt {device.id!r}: params.rt_address must be an integer in 0..31")
-            continue
-        address = int(raw_address)
-        if address in rt_addresses[device.data_bus]:
-            err(f"rt {device.id!r}: address {address} already used on {device.data_bus}")
-        rt_addresses[device.data_bus].add(address)
-    for bus_id, count in sorted(bcs_per_bus.items()):
+        _accumulate_data_device(err, device, part, bus_ids, acc)
+    for bus_id in sorted(bus_ids):
+        count = acc.bcs_per_bus[bus_id]
         if count != 1:
             err(f"data bus {bus_id!r}: needs exactly one BC, has {count}")
+        _validate_bus_connectivity(err, bus_id, acc.members[bus_id], acc.segments[bus_id])
+
+
+def _accumulate_data_device(
+    err: Callable[[str], None],
+    device: DeviceSpec,
+    part: PartSpec,
+    bus_ids: set[str],
+    acc: _DataBusAcc,
+) -> None:
+    if part.behavior not in _DATA_BEHAVIORS:
+        if device.data_bus is not None:
+            err(f"device {device.id!r}: 'data_bus' invalid for behavior {part.behavior}")
+        return
+    if device.data_bus is None:
+        err(f"device {device.id!r} ({part.behavior}): missing 'data_bus'")
+        return
+    if device.data_bus not in bus_ids:
+        err(f"device {device.id!r}: unknown data bus {device.data_bus!r}")
+        return
+    acc.members[device.data_bus][device.id] = part.behavior
+    if part.behavior == "bc":
+        acc.bcs_per_bus[device.data_bus] += 1
+    elif part.behavior == "rt":
+        _validate_rt_address(err, device, acc.rt_addresses[device.data_bus])
+    elif part.behavior == "junction":
+        if device.ends:
+            err(f"junction {device.id!r}: couplers take no 'ends'")
+    elif set(device.ends) != {"a", "b"}:  # harness_seg
+        err(f"harness {device.id!r}: needs ends {{a, b}}")
+    else:
+        acc.segments[device.data_bus].append((device.ends["a"], device.ends["b"]))
+
+
+def _validate_rt_address(err: Callable[[str], None], device: DeviceSpec, seen: set[int]) -> None:
+    raw_address = device.params.get("rt_address")
+    if raw_address is None or not raw_address.is_integer() or not 0 <= raw_address <= 31:
+        err(f"rt {device.id!r}: params.rt_address must be an integer in 0..31")
+        return
+    address = int(raw_address)
+    if address in seen:
+        err(f"rt {device.id!r}: address {address} already used on {device.data_bus}")
+    seen.add(address)
+
+
+def _validate_bus_connectivity(
+    err: Callable[[str], None],
+    bus_id: str,
+    members: dict[str, str],
+    segments: list[tuple[str, str]],
+) -> None:
+    adjacency: dict[str, set[str]] = {}
+    for a, b in segments:
+        for end in (a, b):
+            if end not in members:
+                err(f"harness end {end!r} is not a member of data bus {bus_id!r}")
+        adjacency.setdefault(a, set()).add(b)
+        adjacency.setdefault(b, set()).add(a)
+    bcs = sorted(d for d, behavior in members.items() if behavior == "bc")
+    rts = sorted(d for d, behavior in members.items() if behavior == "rt")
+    for bc in bcs:
+        seen = {bc}
+        stack = [bc]
+        while stack:
+            here = stack.pop()
+            for other in adjacency.get(here, ()):
+                if other not in seen:
+                    seen.add(other)
+                    stack.append(other)
+        for rt in rts:
+            if rt not in seen:
+                err(f"rt {rt!r} is not reachable from bc {bc!r} on data bus {bus_id!r}")
 
 
 def _validate_device_refs(

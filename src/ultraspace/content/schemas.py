@@ -35,6 +35,8 @@ Behavior = Literal[
     "xducer_soc",
     "bc",
     "rt",
+    "junction",
+    "harness_seg",
 ]
 
 #: Required `params` keys per behavior (units in key names, ADR-0004).
@@ -49,6 +51,8 @@ REQUIRED_PARAMS: dict[str, frozenset[str]] = {
     "xducer_soc": frozenset({"sigma_frac"}),
     "bc": frozenset({"r_ohm", "min_v"}),
     "rt": frozenset({"r_ohm", "min_v"}),
+    "junction": frozenset(),
+    "harness_seg": frozenset(),
 }
 
 #: Required electrical `ports` per behavior (transducers attach via `measures`).
@@ -63,6 +67,8 @@ REQUIRED_PORTS: dict[str, frozenset[str]] = {
     "xducer_soc": frozenset(),
     "bc": frozenset({"pos", "neg"}),
     "rt": frozenset({"pos", "neg"}),
+    "junction": frozenset(),
+    "harness_seg": frozenset(),
 }
 
 
@@ -105,6 +111,7 @@ class DataBusSpec(_Model):
 
     id: str
     name: str  # display name, e.g. "DB-A"
+    termination_ohm: float = Field(default=78.0, gt=0.0)  # both ends, per 1553B
 
 
 class DeviceSpec(_Model):
@@ -117,6 +124,7 @@ class DeviceSpec(_Model):
     scl: str | None = None  # SCL address (may be shared, e.g. V+I xducers)
     interlock_open: str | None = None  # device id that must be OPEN (precharge law)
     data_bus: str | None = None  # bc/rt: data bus id this device attaches to
+    ends: dict[str, str] = Field(default_factory=dict)  # harness_seg: {a, b} bus-member ids
     params: dict[str, float] = Field(default_factory=dict)  # instance overrides (soc_init)
 
 

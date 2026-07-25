@@ -106,3 +106,5 @@ BUS B  [bus.b]  10 mF
 | 24-190-150 | Equipment load, 150 W class | 2 | 6.5 kg |
 | 42-100-001 | Data bus controller, 1553 family | 1 | 1.8 kg |
 | 42-110-001 | Data bus remote terminal, 1553 family | 2 | 0.9 kg |
+| 42-120-001 | Data bus coupler, transformer-isolated | 2 | 0.3 kg |
+| 42-130-001 | Data bus twinax run (trunk/stub) | 4 | 0.2 kg |
