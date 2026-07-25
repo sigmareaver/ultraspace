@@ -15,7 +15,7 @@ from ultraspace.interaction.procedures import ProcedureResult
 from ultraspace.ship import Simulation
 from ultraspace.testing import inject_fault
 
-COVERED = {"core:fim-42-11"}
+COVERED = {"core:fim-42-11", "core:fim-42-12"}
 
 
 def _run_fim(tree: ContentTree, suspect: str) -> tuple[Simulation, ProcedureResult]:
@@ -60,3 +60,52 @@ def test_fim_42_11_routes_one_dark_out_of_the_jam_tree(tree: ContentTree) -> Non
     result = run_procedure(sim, tree.procedures["core:fim-42-11"])
     assert result.passed, result.failure_summary()
     assert [r.step for r in result.steps] == [1, 8]  # boundary exit, no cycling
+
+
+# -- FIM 42-12: the harness tree, against each injected medium/module fault --
+#
+# The documented tree de-energizes the bus (with a bleed wait — an open
+# breaker is not a dead rail) and lets the DMM decide. Each fault must walk
+# to its own verdict; the step list is the trace. Expected paths cite the
+# procedure's branch steps; editing the FIM without understanding it fails
+# here — that is the point of the suite.
+
+FIM_42_12_PATHS: dict[tuple[str, str], list[int]] = {
+    ("seg.j1-j2", "open"): [1, 2, 4, 5, 6, 7, 8, 10, 11, 12, 32, 33, 34, 35],
+    ("seg.bc-j1", "open"): [1, 22, 23, 24, 25, 26, 27, 32, 33, 34, 35],
+    ("seg.bc-j1", "short"): [1, 22, 23, 24, 25, 26, 28, 27, 32, 33, 34, 35],
+    ("seg.j1-j2", "short"): [1, 22, 23, 24, 25, 26, 28, 29, 30, 32, 33, 34, 35],
+    ("stub.j2-rt12", "open"): [1, 2, 4, 5, 6, 7, 8, 9, 32, 33, 34, 35],
+    ("stub.j2-rt12", "short"): [1, 2, 4, 5, 6, 7, 8, 10, 9, 32, 33, 34, 35],
+    ("stub.j1-rt5", "open"): [1, 2, 3, 14, 15, 16, 17, 18, 19, 32, 33, 34, 35],
+    ("rt.12", "dead"): [1, 2, 4, 5, 6, 7, 8, 10, 11, 13, 32, 33, 34, 35],
+    ("rt.5", "dead"): [1, 2, 3, 14, 15, 16, 17, 18, 20, 21, 32, 33, 34, 35],
+    ("j1", "open"): [1, 22, 23, 24, 25, 26, 28, 29, 31],  # boundary: couplers/BC
+}
+
+
+def test_fim_42_12_convicts_each_harness_fault(tree: ContentTree) -> None:
+    for (target, mode), expected_path in FIM_42_12_PATHS.items():
+        sim = Simulation(tree, "core:tb-1", master_seed=42)
+        for proc_id in ("core:som-24-30-01", "core:som-42-30-01"):
+            result = run_procedure(sim, tree.procedures[proc_id])
+            assert result.passed, (target, result.failure_summary())
+        inject_fault(sim, target, mode)
+        sim.step(4)  # the symptom declares
+        result = run_procedure(sim, tree.procedures["core:fim-42-12"])
+        path = [r.step for r in result.steps]
+        assert result.passed, f"{target}/{mode}: {result.failure_summary()}"
+        assert path == expected_path, f"{target}/{mode}: walked {path}"
+        if target != "j1":  # the coupler boundary exits at 42-13; repairs verify whole
+            assert "MASTER CAUTION: clear" in sim.summary()
+
+
+def test_fim_42_12_rejects_a_live_bus_for_ohms_checks(tree: ContentTree) -> None:
+    """The interlock the NOTE teaches: probing a live bus is refused."""
+    sim = Simulation(tree, "core:tb-1", master_seed=42)
+    for proc_id in ("core:som-24-30-01", "core:som-42-30-01"):
+        result = run_procedure(sim, tree.procedures[proc_id])
+        assert result.passed, result.failure_summary()
+    d = Dispatcher(sim)
+    refusal = d.execute_line("data.db.a.j1 read")
+    assert not refusal.ok and "de-energize" in refusal.text

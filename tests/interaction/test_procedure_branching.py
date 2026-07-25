@@ -134,5 +134,17 @@ def test_branch_targets_are_schema_validated() -> None:
                 }
             ]
         )
-    with pytest.raises(ValueError, match="branch targets require expect_telemetry"):
+    with pytest.raises(ValueError, match="branch targets require an expectation"):
         make_proc([{"step": 1, "scl": "eps read", "on_pass_goto": 1}])
+    with pytest.raises(ValueError, match="one expectation kind per step"):
+        make_proc(
+            [
+                {
+                    "step": 1,
+                    "scl": "eps read",
+                    "expect_telemetry": "mt.bus.e.v",
+                    "expect_min": 1.0,
+                    "expect_text": "V",
+                }
+            ]
+        )

@@ -13,7 +13,7 @@ steps:
     expect_max: 0.0
     within_s: 2.0
     on_fail_goto: 8
-    note: "Confirm the jam signature: EVERY terminal NO RESPONSE (42-00-00 §3)."
+    note: "Confirm the jam signature: EVERY terminal NO RESPONSE (42-00-00 §4)."
   - step: 2
     scl: "eps cb.a2 open"
     note: "Cycle RT 12's feed: OPEN."

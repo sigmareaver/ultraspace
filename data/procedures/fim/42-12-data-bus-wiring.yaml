@@ -1,0 +1,191 @@
+schema: procedure/1
+id: fim-42-12
+title: "Data Bus Wiring and Medium Faults"
+manual_ref: "FIM 42-12"
+ship: core:tb-1
+# The harness tree: split on the table, de-energize (let the rails bleed —
+# an open breaker does not mean a dead rail), then let the DMM talk.
+# Branch steps key on the DMM output (expect_text); repair steps route to
+# the shared re-energize + verify tail; exit steps end at 0 (verdict END).
+steps:
+  - step: 1
+    scl: "data.db.a read"
+    expect_telemetry: bc.a
+    expect_max: 0.0
+    within_s: 2.0
+    on_pass_goto: 22
+    on_fail_goto: 2
+    note: "Split on the table: EVERY terminal dark → the trunk tree. One dark → the stub tree."
+  - step: 2
+    scl: "data.db.a read"
+    expect_text: "12   NO RESPONSE"
+    on_pass_goto: 4
+    on_fail_goto: 3
+    note: "Which terminal is dark? RT 12 → its coupler is J2."
+  - step: 3
+    scl: "data.db.a read"
+    expect_text: "5    NO RESPONSE"
+    on_pass_goto: 14
+    on_fail_goto: 37
+    note: "RT 5 → its coupler is J1. Neither → outside this checklist."
+  # -- one-dark tree, RT 12 (coupler J2) --
+  - step: 4
+    scl: "eps cb.e2 open"
+    note: "De-energize DB-A: bus controller feed OPEN."
+  - step: 5
+    scl: "eps cb.e3 open"
+    note: "RT 5 feed OPEN."
+  - step: 6
+    scl: "eps cb.a2 open"
+    note: "RT 12 feed OPEN."
+  - step: 7
+    wait_s: 1.0
+    note: "Allow 1 s for the rails to bleed — an open breaker is not a dead rail."
+  - step: 8
+    scl: "data.db.a.j2 read"
+    expect_text: "stub.j2-rt12 (toward rt.12): OL"
+    on_pass_goto: 9
+    on_fail_goto: 10
+    note: "Probe J2: OL on the stub tap = the stub is open, not the board."
+  - step: 9
+    scl: "data.db.a.stub.j2-rt12 repair"
+    expect_text: "repaired"
+    on_pass_goto: 32
+    note: "VERDICT: stub fault — the run is replaced."
+  - step: 10
+    scl: "data.db.a.j2 read"
+    expect_text: "stub.j2-rt12 (toward rt.12): 0.0 ohm"
+    on_pass_goto: 9
+    on_fail_goto: 11
+    note: "~0 ohm on the stub tap = the stub is shorted (contained by the coupler)."
+  - step: 11
+    scl: "data.db.a.j2 read"
+    expect_text: "seg.j1-j2 (toward j1): OL"
+    on_pass_goto: 12
+    on_fail_goto: 13
+    note: "Stub reads good: check the trunk toward the BC — OL = break between the couplers."
+  - step: 12
+    scl: "data.db.a.seg.j1-j2 repair"
+    expect_text: "repaired"
+    on_pass_goto: 32
+    note: "VERDICT: trunk break — the segment is replaced."
+  - step: 13
+    scl: "data.db.a.rt.12 repair"
+    expect_text: "replaced"
+    on_pass_goto: 32
+    note: "VERDICT: stub and trunk good, terminal silent — the module is replaced."
+  # -- one-dark tree, RT 5 (coupler J1) --
+  - step: 14
+    scl: "eps cb.e2 open"
+    note: "De-energize DB-A: bus controller feed OPEN."
+  - step: 15
+    scl: "eps cb.e3 open"
+    note: "RT 5 feed OPEN."
+  - step: 16
+    scl: "eps cb.a2 open"
+    note: "RT 12 feed OPEN."
+  - step: 17
+    wait_s: 1.0
+    note: "Allow 1 s for the rails to bleed."
+  - step: 18
+    scl: "data.db.a.j1 read"
+    expect_text: "stub.j1-rt5 (toward rt.5): OL"
+    on_pass_goto: 19
+    on_fail_goto: 20
+    note: "Probe J1: OL on the stub tap = the stub is open."
+  - step: 19
+    scl: "data.db.a.stub.j1-rt5 repair"
+    expect_text: "repaired"
+    on_pass_goto: 32
+    note: "VERDICT: stub fault — the run is replaced."
+  - step: 20
+    scl: "data.db.a.j1 read"
+    expect_text: "stub.j1-rt5 (toward rt.5): 0.0 ohm"
+    on_pass_goto: 19
+    on_fail_goto: 21
+    note: "~0 ohm on the stub tap = the stub is shorted."
+  - step: 21
+    scl: "data.db.a.rt.5 repair"
+    expect_text: "replaced"
+    on_pass_goto: 32
+    note: "VERDICT: stub good, terminal silent — the module is replaced."
+  # -- trunk tree (every terminal dark) --
+  - step: 22
+    scl: "eps cb.e2 open"
+    note: "De-energize DB-A: bus controller feed OPEN."
+  - step: 23
+    scl: "eps cb.e3 open"
+    note: "RT 5 feed OPEN."
+  - step: 24
+    scl: "eps cb.a2 open"
+    note: "RT 12 feed OPEN."
+  - step: 25
+    wait_s: 1.0
+    note: "Allow 1 s for the rails to bleed."
+  - step: 26
+    scl: "data.db.a.j1 read"
+    expect_text: "seg.bc-j1 (toward bc.a): OL"
+    on_pass_goto: 27
+    on_fail_goto: 28
+    note: "OL toward the BC = the break is in seg.bc-j1."
+  - step: 27
+    scl: "data.db.a.seg.bc-j1 repair"
+    expect_text: "repaired"
+    on_pass_goto: 32
+    note: "VERDICT: seg.bc-j1 replaced."
+  - step: 28
+    scl: "data.db.a.j1 read"
+    expect_text: "seg.bc-j1 (toward bc.a): 0.0 ohm"
+    on_pass_goto: 27
+    on_fail_goto: 29
+    note: "~0 toward the BC = seg.bc-j1 is shorted."
+  - step: 29
+    scl: "data.db.a.j1 read"
+    expect_text: "seg.j1-j2 (toward j2): 0.0 ohm"
+    on_pass_goto: 30
+    on_fail_goto: 31
+    note: "~0 toward J2 = seg.j1-j2 is shorted."
+  - step: 30
+    scl: "data.db.a.seg.j1-j2 repair"
+    expect_text: "repaired"
+    on_pass_goto: 32
+    note: "VERDICT: seg.j1-j2 replaced."
+  - step: 31
+    scl: "data.db.a.j2 read"
+    expect_text: "coupler"
+    on_pass_goto: 0
+    note: "Trunk reads clean at J1: suspect a coupler or the BC (FIM 42-13, pending)."
+  # -- shared tail: re-energize and verify --
+  - step: 32
+    scl: "eps cb.a2 close"
+    note: "RT 12 feed CLOSE."
+  - step: 33
+    scl: "eps cb.e3 close"
+    note: "RT 5 feed CLOSE."
+  - step: 34
+    scl: "eps cb.e2 close"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 3.0
+    on_pass_goto: 35
+    on_fail_goto: 36
+    note: "Bus controller feed CLOSE; verify the bus is whole."
+  - step: 35
+    scl: "data.db.a read"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 2.0
+    on_pass_goto: 0
+    note: "Verdict recorded at the repair step. The error counters keep the episode's evidence."
+  - step: 36
+    scl: "data.db.a read"
+    expect_telemetry: bc.a
+    expect_max: 0.5
+    within_s: 2.0
+    on_pass_goto: 0
+    note: "Repair did not restore the bus: a second fault is present — restart from the table (FIM 42-11)."
+  - step: 37
+    scl: "data.db.a read"
+    expect_text: "RT"
+    on_pass_goto: 0
+    note: "Pattern outside this checklist (FIM 42-13, pending)."

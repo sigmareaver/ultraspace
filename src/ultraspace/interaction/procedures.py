@@ -86,9 +86,17 @@ def _run_step(
         else:
             detail = result.text
 
-    if step.expect_telemetry is None:
+    if step.expect_text is not None:
+        met = step.expect_text in detail
+        indication = StepResult(
+            step.step,
+            met,
+            f"{detail}\n[expect {step.expect_text!r}: {'met' if met else 'NOT MET'}]",
+        )
+    elif step.expect_telemetry is not None:
+        indication = _await_indication(sim, step, detail)
+    else:
         return StepResult(step.step, True, detail), None
-    indication = _await_indication(sim, step, detail)
 
     def label(target: int) -> str:
         return "end" if target == 0 else f"step {target}"

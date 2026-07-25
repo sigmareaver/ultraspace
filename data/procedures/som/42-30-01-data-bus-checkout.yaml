@@ -18,4 +18,4 @@ steps:
     note: "BC publishes bus health once on line; 1.0 = every RT answering."
   - step: 4
     scl: "data.db.a read"
-    note: "Verify RT 5 and RT 12 OK, errors 0. A NO RESPONSE row is isolation data (42-00-00 §3)."
+    note: "Verify RT 5 and RT 12 OK, errors 0. A NO RESPONSE row is isolation data (42-00-00 §4)."

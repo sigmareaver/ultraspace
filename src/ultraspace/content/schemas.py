@@ -160,10 +160,12 @@ class ShipSpec(_Model):
 class StepSpec(_Model):
     """One procedure step: exactly one action; optional expected indication.
 
-    Branching (FIM/QRH trees): when the expected indication is met,
-    `on_pass_goto` jumps; when it is not met, `on_fail_goto` jumps instead of
-    holding. Targets are step numbers in the same procedure; ``0`` ends the
-    procedure (a verdict step — nothing further to check).
+    Expectations come in two kinds: `expect_telemetry` (an instrument reading
+    within bounds) or `expect_text` (a substring of the command output — how
+    DMM readings and table rows branch). Branching (FIM/QRH trees): when the
+    expectation is met, `on_pass_goto` jumps; when it is not, `on_fail_goto`
+    jumps instead of holding. Targets are step numbers in the same procedure;
+    ``0`` ends the procedure (a verdict step — nothing further to check).
     """
 
     step: int
@@ -173,6 +175,7 @@ class StepSpec(_Model):
     expect_telemetry: str | None = None  # transducer device id
     expect_min: float | None = None
     expect_max: float | None = None
+    expect_text: str | None = None  # substring expected in the command output
     within_s: float = 5.0
     on_pass_goto: int | None = None
     on_fail_goto: int | None = None
@@ -188,10 +191,15 @@ class StepSpec(_Model):
             self.expect_min is None and self.expect_max is None
         ):
             raise ValueError("expect_telemetry needs expect_min and/or expect_max")
+        if self.expect_text is not None:
+            if self.scl is None:
+                raise ValueError("expect_text requires an scl action")
+            if self.expect_telemetry is not None:
+                raise ValueError("one expectation kind per step (telemetry xor text)")
         if (self.on_pass_goto is not None or self.on_fail_goto is not None) and (
-            self.expect_telemetry is None
+            self.expect_telemetry is None and self.expect_text is None
         ):
-            raise ValueError("branch targets require expect_telemetry")
+            raise ValueError("branch targets require an expectation (telemetry or text)")
         return self
 
 
