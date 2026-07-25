@@ -1,6 +1,6 @@
 # ATA 42 — Avionics & Data
 
-Status: Draft v0.2 (M2 increments 1–2 implementation contract) · Last updated: 2026-07-19 · Owner: design+engineering
+Status: Draft v0.3 (M2 increments 1–3 implementation contract) · Last updated: 2026-07-20 · Owner: design+engineering
 Related: [../ship-systems.md](../ship-systems.md), [../simulation-depth.md](../simulation-depth.md),
 [../failure-and-repair.md](../failure-and-repair.md), [ata-24-eps.md](ata-24-eps.md),
 [../../engineering/data-model.md](../../engineering/data-model.md)
@@ -15,17 +15,28 @@ the *symptom surface* — and the game's law is symptoms first. It also makes
 fiction is replaced, in stages, by a transport that can fail, lag, or lie.
 
 M2 ships in increments. **Increment 1** (bus, BC/RT, health accounting, analyzer
-v1, checkout manual) shipped 2026-07-18. This revision specifies **increment 2** —
-fault model v1 (the stuck-dominant RT, the U4 fault) with the power-cycle repair
-and an executable FIM 42-11 — and marks the rest **(later M2)**. Fidelity tier:
-L1 (the bus is quasi-static within a tick).
+v1, checkout manual) shipped 2026-07-18; **increment 2** (fault model v1:
+stuck-dominant, power-cycle repair, executable FIM 42-11, runner branching)
+shipped 2026-07-19. This revision specifies **increment 3** — the harness:
+topology, located medium faults, and measurement-driven isolation — and marks
+the rest **(later M2)**. Fidelity tier: L1 (the bus is quasi-static within a
+tick).
 
-Increment 2 precedes sensor transport deliberately: it is the smallest slice
-that puts a *casualty that happens to the player* on the bus, it builds the
-fault-injection console every later casualty test needs (testing.md class 5),
-and it lands FIM conformance machinery (verdict-path branching) before the
-isolation trees get wide. Sensor transport, with its power-up procedure churn,
-follows on the machinery this increment proves.
+**Review of increments 1–2 (why increment 3 exists).** The ledger knows counts
+but not places. The electrical system gets its depth from topology — a solve
+over a physical graph makes truth *located* (this node, that branch) and lets
+procedures exploit location. The data bus so far has no medium: RTs float in
+space, every power fault looks identical, the only global fault is a jam, and
+the only repair is a power cycle. Two analyzable patterns (one-dark, all-dark)
+is not a diagnostic discipline. Increment 3 gives the bus a body — trunk,
+couplers, stubs, terminators — with faults *at places*, and gives the player a
+measurement (the DMM) that reads those places. The illusion-of-simulation
+contract is kept exactly the electrical way: no waveform, no bits, no timing —
+graph reachability and equivalent-resistance arithmetic per tick, negligible
+cost, all of it consistent with the physical story. Reference: MIL-STD-1553's
+own design culture (isolation transformers, transformer-coupled stubs, both-
+end termination) — the standard is *designed* so one module cannot kill the
+bus; the failures that still can are the interesting ones.
 
 ## 1. Function & player-facing behavior
 
@@ -46,21 +57,38 @@ Later M2: DB-B failover, sensor-transport migration (displays show stale values
 when their RT dies — the U4 step-3 symptom), FIM 42-11, MEL DB-A deferral,
 firmware behaviors (modes, watchdogs, reload).
 
-## 2. Composition (TB-1; increments 1–2)
+## 2. Composition (TB-1; increments 1–3)
 
 | Device | Part | Behavior |
 |---|---|---|
 | Bus controller | `core:bc-1553` | Cyclic schedule, transaction accounting, health telemetry |
 | Remote terminal | `core:rt-1553` | Answers BC polls while powered; per-instance RT address |
+| Bus coupler | `core:db-coupler` | Trunk junction: feed-through + stub taps; DMM probe point |
+| Harness segment | `core:db-harness` | A run of twinax (trunk or stub); fault-capable medium |
 
-TB-1 placement (the fixture's "1 data bus", testing.md §fixtures): `DB-A`
-with `bc.a` fed from BUS E via breaker `CB E2` (the BC is the ship's data
-eyesight; it belongs on the essential bus) and **two** RTs: `rt.12`
-(address 12, the PDU-2 role from the U4 story) fed from BUS A via `CB A2`,
-and — added at increment 2 — `rt.5` fed from BUS E via `CB E3`. Two
-terminals are the minimum for the analyzer's diagnostic split (§3): with
-one, "this RT dark" and "the whole bus dark" are indistinguishable. RT 5 is
-also where the essential instruments will ride when sensor transport lands.
+TB-1 topology (the fixture's "1 data bus", testing.md §fixtures):
+
+```
+        seg.bc-j1       seg.j1-j2
+  bc.a ────────── J1 ────────── J2 ── (78 ohm end terminator)
+                   │             │
+                stub.j1-rt5   stub.j2-rt12
+                   │             │
+                  rt.5         rt.12   (bc.a end: 78 ohm terminator)
+```
+
+- `bc.a` fed from BUS E via `CB E2` (the BC is the ship's data eyesight; it
+  belongs on the essential bus).
+- `rt.5` fed from BUS E via `CB E3`; `rt.12` (the PDU-2 role from the U4
+  story) fed from BUS A via `CB A2`.
+- Two couplers `j1` (essential-bay side), `j2` (equipment-bay side) — the
+  network's relays: a coupler or trunk fault partitions the bus, and the
+  dark zone is *contiguous from the BC's chair*, which is what makes it
+  diagnosable from the analyzer pattern.
+- Both trunk ends terminated at the cable's nominal 78 ohm (MIL-STD-1553B:
+  "a resistance equal to the selected cable nominal characteristic
+  impedance"); stubs are **transformer-coupled** — the standard's own
+  fault-containment culture, see §6.
 
 Kestrel: same parts on the same scheme. VMC-1/2 and DB-B: later M2, with
 failover.
@@ -95,12 +123,23 @@ intra-tick bus physics at L1 (that is what L2 is for, later M2).
   *every* transaction on the bus fails while it holds. The ledger does not
   model the jam as bus state — the ship layer computes it per tick from the
   physical truth (any energized stuck-dominant RT on the bus) and every poll
-  that tick fails, exactly as the BC would see it. This is the analyzer's
-  diagnostic split: **one RT dark** (its power, its board) vs **whole bus
-  dark** (the medium or the BC).
+  that tick fails, exactly as the BC would see it.
+- **Topology (increment 3).** The bus is a graph: junctions (couplers)
+  joined by trunk segments, with stub segments tapping RTs at couplers. An
+  RT answers a poll iff it is energized, alive, and *reachable* — an
+  unbroken path of ok segments and couplers from the BC. The poll outcome is
+  computed per tick from the graph (O(members); no waveform, no timing —
+  the illusion contract).
+- **Medium death (increment 3).** A **trunk short** (or a shorted coupler)
+  kills the whole medium electrically: every transaction fails, exactly like
+  a jam — but cycling terminals does *not* help, and the DMM reads ~0 ohm.
+  A **stub short is contained**: transformer coupling (the 1553B-preferred
+  stubbing, §6) isolates the fault to the stub and its terminal — one RT
+  dark, the bus untouched.
 
 **Extension points (specified, not built):** retries, message payloads
-(sensor transport), DB-B failover, BC self-test/fault modes.
+(sensor transport), DB-B failover, BC self-test/fault modes, missing/
+degraded termination (reflections → intermittents, needs the stress model).
 
 ## 4. Instrumentation & the No God View chain
 
@@ -126,40 +165,61 @@ the honest dark-panel lesson from the M1 playtests).
 ## 6. Failure modes
 
 Increment 1 shipped **consequence physics**: unpowered RT (breaker action,
-bus loss, harness) → BC timeouts → `DEGRADED`; unpowered BC → bus silence.
+bus loss) → BC timeouts → `DEGRADED`; unpowered BC → bus silence.
+Increment 2 shipped the fault model v1 (injection console, FDR-logged
+injection and clearing; nothing surfaces to the operator live). Increment 3
+completes the located-fault matrix:
 
-Increment 2 ships the **fault model v1** and its first injected mode:
+| Fault | Target | Bus effect | Analyzer signature | Distinguisher |
+|---|---|---|---|---|
+| Power loss | RT feed | none beyond it | one RT dark | breaker open / feed dead |
+| `dead` (module, silent) | RT | none beyond it | one RT dark, powered | stub ohms good, board won't answer |
+| `stuck_dominant` (latch-up) | RT | **protocol jam** | all RTs dark | clears on power removal of the babbler |
+| `open` | stub segment | none beyond it | one RT dark, powered | stub ohms OL at the coupler |
+| `short` | stub segment | **contained** (transformer coupling) | one RT dark, powered | stub ohms ~0 at the coupler |
+| `open` | trunk segment / coupler | **partition** | contiguous dark suffix from the BC | trunk ohms OL toward the dark zone |
+| `short` | trunk segment / coupler | **medium dead** | all RTs dark | cycling doesn't help; trunk ohms ~0 |
 
-- **Stuck-dominant transceiver** (`stuck_dominant`, the U4 latch-up
-  signature). State, not exception (Iron Law 7): a flag on the RT, set via
-  the **fault-injection console** (`ultraspace.testing.inject_fault` — dev
-  and CI surface; scenario fault schedules reuse it when scenarios land).
-  Physics per failure-and-repair.md: a latch-up is a parasitic conduction
-  path — it **holds while powered and clears on power removal**. Clearing
-  is logged (`fault-cleared`, FDR); injection is logged (`fault-injected`).
-  Neither event surfaces to the operator live — the player discovers the
-  fault through symptoms, and reconstructs the cause in FDR review.
-- **Intermittents, SEU rates, stress-driven scheduling** (the solar event
-  that *causes* the latch-up): the stress-model increment, per
-  failure-and-repair.md §stress-model.
-- **BC fault modes** (dead controller, firmware faults): with the BC
-  self-test/firmware increment. FIM 42-11's whole-bus-dark tree honestly
-  names the boundary — if cycling every terminal feed restores nothing,
-  the suspect is the controller or the medium (FIM 42-12, *pending*).
+The matrix is the CAN/1553 fault gospel made physical, with the standard's
+own containment culture: isolation transformers and transformer-coupled
+stubs mean *one module's electrical fault cannot kill the bus* — the
+failures that still can are a babbling transmitter (protocol, clears with
+power) and a trunk short (medium, located, ohmable). A shorted stub is the
+contained case; had the ship been wired with direct-coupled stubs it would
+kill the bus — our ships are built to the standard's preferred culture.
+
+**Measurement (the DMM).** Isolation is measurement-driven. A junction
+`read` is a DMM ohms check at that coupler, per direction: equivalent
+resistance seen looking along each segment — the far terminator (78 ohm)
+through an unbroken path, `OL` toward an open, ~0 ohm toward a short;
+stub taps read the coupling-winding continuity (~2 ohm) / OL / ~0.
+**Interlock, real shop practice:** ohms checks refuse while any data
+device on that bus is energized — de-energize the bus before probing
+(FIM 42-12 teaches it; refusal cites it).
+
+**Repair (field form; MAINT attaches cost later).** `repair` on a segment,
+coupler, or RT (module) clears its fault, FDR-logged, interlocked the
+same way — you do not splice a live bus. Intermittents, SEU rates, and
+stress scheduling (the solar event that *causes* the latch-up): the
+stress-model increment. BC fault modes: the BC/firmware increment.
 
 ## 7. Procedures (manual set, staged)
 
-- **SOM 42-00-00** Theory of data operations (increment 1; jam signature
-  added at increment 2).
+- **SOM 42-00-00** Theory of data operations (topology, termination,
+  coupling culture, and DMM practice added at increment 3).
 - **SOM 42-30-01** *Data Bus Checkout* (executable; conformance).
-- **FIM 42-11** *Data Bus Degraded* (executable, increment 2): the U4
-  isolation tree — jam signature → sequential terminal power-cycling →
-  the bus recovers when the babbling terminal goes dark → verdict.
-  Branching is executable: the procedure runner gains `on_pass_goto` /
-  `on_fail_goto` (data-model.md's declared on-fail branch, now built),
-  and conformance runs the tree against each injected fault asserting
-  the verdict path. The one-RT-dark branch and the BC/medium boundary
-  are prose-honest pointers to FIM 42-12 (*pending*).
+- **FIM 42-11** *Data Bus Degraded* (executable): the U4 jam tree —
+  all-dark → sequential power-cycling → the bus recovers when the babbling
+  terminal goes dark. Its boundaries now hand off to FIM 42-12.
+- **FIM 42-12** *Data Bus Wiring and Medium Faults* (executable,
+  increment 3): the harness tree — one-dark with a good feed → stub ohms
+  at the coupler (stub / board / trunk upstream); all-dark after cycling →
+  de-energize → trunk ohms at the couplers (short: ~0; open: OL) →
+  `repair` the interval → re-energize → verify. Conformance runs the tree
+  against each injected harness fault and asserts the verdict path; the
+  runner's expectation vocabulary gains `expect_text` (substring match on
+  command output) so DMM readings are branchable like real checklist
+  readings.
 - **QRH** data-bus loss, **MEL 42-01** (DB-A deferral): with the DB-B /
   fault-scheduling increments.
 
@@ -174,40 +234,45 @@ RTs have no operator address at increment 1: they are boxes, reached through
 their power breakers (and, at L2, their test points). The BC has no verbs
 beyond `read` — schedule control is firmware, not panel.
 
-## 9. Content-schema notes (increment 1)
+## 9. Content-schema notes (increments 1–3)
 
-- New part behaviors: `bc`, `rt` (params `r_ohm` input load, `min_v` power
-  gate; ports `pos`/`neg` — they are electrical loads that also attach to a
-  data bus).
-- Blueprint gains `data_buses: [{id: db.a, name: DB-A}]`; data devices declare
+- Part behaviors: `bc`, `rt` (params `r_ohm` input load, `min_v` power
+  gate; ports `pos`/`neg); `junction` (bus coupler; no electrical load) and
+  `harness_seg` (trunk/stub run; `ends: {a, b}` naming bus members — BC,
+  junction, or RT device ids). Buses declare `termination_ohm` (78).
+- Blueprint `data_buses: [{id: db.a, name: DB-A}]`; data devices declare
   `data_bus: db.a`. RTs take their address from instance params
-  (`rt_address`, 0–31; carried as float until the schema grows integer params —
-  noted deviation, forward-compatible).
-- Validation: exactly one BC per bus; RT addresses unique per bus; `data_bus`
-  references resolve. All load-time errors, never tick-time.
-- WDM: the 24 feeder trees list the new breakers (they are EPS loads); the
-  generator classifies `bc`/`rt` so `make generate-check` stays green. WDM 42
-  sheets arrive with L2 netlists.
+  (`rt_address`, 0–31; carried as float until the schema grows integer
+  params — noted deviation, forward-compatible).
+- Validation: exactly one BC per bus; RT addresses unique per bus; harness
+  `ends` resolve to bus members; every bus member is reachable from the BC
+  through declared segments at load time (a dangling harness is a build
+  error, never a tick-time surprise). All load-time errors.
+- WDM: the 24 feeder trees list the data-hardware breakers; a generated
+  WDM 42 harness sheet (trunk/couplers/stubs/terminator, in BC-outward
+  order) is the isolation map FIM 42-12 references. Harness and couplers
+  carry no electrical ports, so the 24 tables are unchanged by them.
 
 ## 10. Test plan
 
 - **Unit:** schedule execution; timeout → FAILED → health transitions;
-  recovery clears; error counter monotonicity; unpowered BC publishes nothing.
-  Increment 2: stuck-dominant jams every transaction while energized, stops
-  jamming when the feed opens, and clears on power removal (`fault-cleared`).
-- **Invariant (property, hypothesis):** causality over arbitrary power
-  sequences — replies only for polls issued the same tick, rx ≤ tx, failed ⊆
-  registered, health ∈ [0,1]; recovery restores 1.0.
-- **Casualty:** `eps cb.a2 open` mid-ops → `DATA BUS A DEGRADED` experienced
-  via telemetry/annunciator only; reclose → recovery. `eps cb.e2 open` →
-  analyzer reports NO DATA and *no* annunciator. Increment 2: injected
-  stuck-dominant → *every* RT NO RESPONSE (the jam signature, distinct from
-  one-dark power loss) → power-cycling the babbling terminal's feed restores
-  the bus. Injection via `ultraspace.testing.inject_fault` is the one
-  permitted testing import in this directory (testing.md class 5 says
-  "inject F, assert via telemetry only" — assertions stay player-surface).
-- **Conformance:** SOM 42-30-01 headless on TB-1 and Kestrel. Increment 2:
-  FIM 42-11 against each injected suspect — verdict path correct per
-  injection (the executed step list is the tree's trace).
-- **Determinism:** TB-1 journals replay through the suite (no new RNG
-  streams at increments 1–2; injection is journal-external, like SCL).
+  recovery clears; error counter monotonicity; unpowered BC publishes
+  nothing. Stuck-dominant jams while energized and clears on power removal.
+  Increment 3: reachability over the graph, partition contiguity, trunk
+  short kills / stub short contained, ohms arithmetic per direction
+  (terminator / OL / ~0, stub continuity), DMM interlock, `repair` clears.
+- **Invariant (property, hypothesis):** causality over arbitrary power and
+  harness-fault sequences — rx ≤ tx, replies only for polls issued the same
+  tick, failed ⊆ registered, health ∈ [0,1]; a trunk short is always
+  bus-wide, a stub short never is.
+- **Casualty (all signatures experienced via telemetry/SCL/panel only):**
+  power loss → one dark; dead module → one dark, powered; stuck-dominant →
+  all dark, clears on the cycle; stub open/short → one dark with telling
+  stub ohms; trunk open → *contiguous* dark suffix; trunk short → all dark
+  that no power cycle fixes, trunk ohms ~0.
+- **Conformance:** SOM 42-30-01 headless on both ships. FIM 42-11 per
+  injected jam suspect; FIM 42-12 per injected harness fault — verdict
+  path correct per fault (the executed step list is the tree's trace), and
+  a deliberately wrong FIM edit fails CI.
+- **Determinism:** no new RNG streams at increments 1–3; injection is
+  journal-external, like SCL.
