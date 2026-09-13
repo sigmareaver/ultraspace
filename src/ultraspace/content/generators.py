@@ -208,16 +208,20 @@ def _protector(ctx: _Ctx, load: DeviceSpec) -> str:
 
 def _instrumentation(ctx: _Ctx) -> str:
     rows = ["## Instrumentation {#instrumentation}", ""]
-    rows.append("| Telemetry ID | P/N | Measures | Unit | SCL |")
-    rows.append("|---|---|---|---|---|")
+    rows.append("| Telemetry ID | P/N | Measures | Unit | SCL | Reported via |")
+    rows.append("|---|---|---|---|---|---|")
     units = {"xducer_v": "V", "xducer_i": "A", "xducer_soc": "frac"}
     for device in ctx.ship.devices:
         part = ctx.part_of[device.id]
         if part.behavior not in _XDUCERS:
             continue
+        # Carriage is wiring, so it belongs on the wiring sheet: it is the
+        # difference between a reading that can go stale and one that cannot
+        # (ata-42-data.md §4, FIM 42-14).
+        via = f"`{device.carried_by}`" if device.carried_by else "panel-wired"
         rows.append(
             f"| {device.id} | {part.part_number} | {device.measures} "
-            f"| {units[part.behavior]} | `{device.scl or '-'}` |"
+            f"| {units[part.behavior]} | `{device.scl or '-'}` | {via} |"
         )
     return "\n".join(rows)
 

@@ -15,7 +15,7 @@ from ultraspace.interaction.procedures import ProcedureResult
 from ultraspace.ship import Simulation
 from ultraspace.testing import inject_fault
 
-COVERED = {"core:fim-42-11", "core:fim-42-12"}
+COVERED = {"core:fim-42-11", "core:fim-42-12", "core:fim-42-14"}
 
 
 def _run_fim(tree: ContentTree, suspect: str) -> tuple[Simulation, ProcedureResult]:
@@ -144,3 +144,59 @@ def test_fim_42_12_rejects_a_live_bus_for_ohms_checks(tree: ContentTree) -> None
     d = Dispatcher(sim)
     refusal = d.execute_line("data.db.a.j1 read")
     assert not refusal.ok and "de-energize" in refusal.text
+
+
+# -- FIM 42-14: the routing tree for a frozen indication --------------------
+#
+# This one is judged on where it *sends* you. Two of its exits leave ATA 42
+# entirely, and the tree is only correct if it takes them: blaming the data
+# network for a dead bus is the exact mistake the section exists to prevent.
+
+FIM_42_14_PATHS: dict[str, tuple[str, list[int]]] = {
+    # (the command that creates the entry symptom, the expected walk)
+    "carrier RT 12 dark": ("eps cb.a2 open", [1, 3, 4, 5, 7, 10]),
+    "carrier RT 5 dark": ("eps cb.e3 open", [1, 2, 12, 13, 14, 16, 19]),
+    # No controller: everything carried goes stale and no lamp ever lights.
+    "controller dark": ("eps cb.e2 open", [1, 3, 4, 5, 6]),
+    # The load really did switch off — the reading changed, it did not freeze.
+    "load switched off": ("eps cb.a1 open", [1, 2, 21]),
+    # The dangerous one: BUS A collapses, taking RT 12 with it, and the cabin
+    # ammeter freezes at a perfectly healthy value. Exit to ATA 24 at step 8.
+    "bus collapse": ("eps bus.a.tie open", [1, 3, 8]),
+}
+
+
+def test_fim_42_14_routes_each_frozen_indication(tree: ContentTree) -> None:
+    for name, (casualty, expected_path) in FIM_42_14_PATHS.items():
+        sim = Simulation(tree, "core:tb-1", master_seed=42)
+        for proc_id in ("core:som-24-30-01", "core:som-42-30-01"):
+            result = run_procedure(sim, tree.procedures[proc_id])
+            assert result.passed, (name, result.failure_summary())
+        Dispatcher(sim).execute_line(casualty)
+        sim.step_s(3.0)  # past the staleness horizon, symptom established
+        result = run_procedure(sim, tree.procedures["core:fim-42-14"])
+        path = [r.step for r in result.steps]
+        assert result.passed, f"{name}: {result.failure_summary()}"
+        assert path == expected_path, f"{name}: walked {path}"
+
+
+def test_fim_42_14_never_reaches_the_data_system_when_the_bus_is_down(tree: ContentTree) -> None:
+    """The section's whole reason to exist, stated as an assertion: with BUS A
+    collapsed the tree must stop at the electrical exit — it may not read the
+    bus table, and it may not convict a terminal that is merely unpowered
+    along with everything else in that bay.
+    """
+    sim = Simulation(tree, "core:tb-1", master_seed=42)
+    for proc_id in ("core:som-24-30-01", "core:som-42-30-01"):
+        assert run_procedure(sim, tree.procedures[proc_id]).passed
+    d = Dispatcher(sim)
+    d.execute_line("eps bus.a.tie open")
+    sim.step_s(3.0)
+    frozen = d.execute_line("eps.load.cabin read")
+    assert "? STALE" in frozen.text
+    assert float(frozen.text.split()[1]) > 4.0  # frozen at a healthy-looking load
+
+    result = run_procedure(sim, tree.procedures["core:fim-42-14"])
+    walked = {r.step for r in result.steps}
+    assert result.passed, result.failure_summary()
+    assert walked.isdisjoint({5, 6, 7, 10, 11}), f"walked into the data tree: {walked}"

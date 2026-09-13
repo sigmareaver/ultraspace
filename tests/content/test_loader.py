@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ultraspace.content import load_tree
+from ultraspace.content import ContentTree, load_tree
 
 DATA_ROOT = Path(__file__).parents[2] / "data"
 
@@ -147,3 +147,55 @@ def test_stranded_coupler_is_a_build_error(tmp_path: Path) -> None:
     tree = load_tree(tmp_path)
     assert not tree.ok
     assert any("'j9' is not reachable" in str(e) for e in tree.errors), tree.errors
+
+
+CARRIAGE_SHIP = """
+schema: ship/1
+id: carriage-test
+name: "Carriage test rig"
+nodes: [{id: rail, c_f: 0.001}]
+data_buses: [{id: db.a, name: DB-A}]
+devices:
+  - {id: bc.a, part: core:bc-1553, ports: {pos: rail, neg: gnd}, data_bus: db.a}
+  - {id: rt.1, part: core:rt-1553, ports: {pos: rail, neg: gnd}, data_bus: db.a,
+     params: {rt_address: 1}}
+  - {id: j1, part: core:db-coupler, data_bus: db.a}
+  - {id: seg.bc-j1, part: core:db-harness, data_bus: db.a, ends: {a: bc.a, b: j1}}
+  - {id: stub.j1-rt1, part: core:db-harness, data_bus: db.a, ends: {a: j1, b: rt.1}}
+  - {id: mt.rail.v, part: core:xducer-v, measures: rail, carried_by: rt.1}
+"""
+
+
+def _carriage_tree(tmp_path: Path, ship: str) -> ContentTree:
+    for name in ("bc-1553", "rt-1553", "db-coupler", "db-harness"):
+        write(tmp_path, f"parts/{name}.yaml", (DATA_ROOT / "parts/42" / f"{name}.yaml").read_text())
+    write(tmp_path, "parts/xducer-v.yaml", (DATA_ROOT / "parts/24/xducer-v.yaml").read_text())
+    write(tmp_path, "ships/carriage.yaml", ship)
+    return load_tree(tmp_path)
+
+
+def test_carried_by_must_name_a_remote_terminal(tmp_path: Path) -> None:
+    """A transducer routed through something that is not a terminal would
+    never go stale for any reason the manuals can teach (spec §9)."""
+    assert _carriage_tree(tmp_path, CARRIAGE_SHIP).ok
+
+    at_a_coupler = CARRIAGE_SHIP.replace("carried_by: rt.1", "carried_by: j1")
+    tree = _carriage_tree(tmp_path, at_a_coupler)
+    assert not tree.ok
+    assert any("is a junction, not a remote terminal" in str(e) for e in tree.errors), tree.errors
+
+    at_nothing = CARRIAGE_SHIP.replace("carried_by: rt.1", "carried_by: rt.9")
+    tree = _carriage_tree(tmp_path, at_nothing)
+    assert not tree.ok
+    assert any("carried_by unknown device 'rt.9'" in str(e) for e in tree.errors), tree.errors
+
+
+def test_only_transducers_are_carried(tmp_path: Path) -> None:
+    """Carriage is a property of an *instrument's* wiring. A terminal that
+    claimed to be carried by another terminal would be a topology lie."""
+    carried_rt = CARRIAGE_SHIP.replace(
+        "params: {rt_address: 1}}", "params: {rt_address: 1}, carried_by: rt.1}"
+    )
+    tree = _carriage_tree(tmp_path, carried_rt)
+    assert not tree.ok
+    assert any("'carried_by' invalid for behavior rt" in str(e) for e in tree.errors), tree.errors

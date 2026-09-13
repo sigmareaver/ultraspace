@@ -257,3 +257,85 @@ def test_replacing_a_sound_part_gives_the_player_no_free_verdict(tree: ContentTr
 
     _re_energize_db_a(d, sim)
     assert "HEALTHY" in d.execute_line("data.db.a read").text
+
+
+def _carried(d: Dispatcher, address: str) -> str:
+    return d.execute_line(f"{address} read").text
+
+
+def test_a_dark_carrier_freezes_its_reading_while_the_load_is_fine(tree: ContentTree) -> None:
+    """The U4 step-3 vignette (simulation-depth.md): the *display* is what is
+    wrong. RT 12 goes dark, the cabin ammeter it carries stops being refreshed
+    and marks itself stale — while the cabin load keeps drawing, BUS A stays
+    at voltage, and the avionics ammeter on the other terminal stays live.
+    """
+    sim, d = powered_tb1_with_data(tree)
+    assert "? STALE" not in _carried(d, "eps.load.cabin")
+    before = _carried(d, "eps.load.cabin")
+
+    d.execute_line("eps cb.a2 open")  # RT 12 loses its feed; load.cabin does not
+    sim.step_s(3.0)
+
+    frozen = _carried(d, "eps.load.cabin")
+    assert "? STALE" in frozen and "age 3.1 s" in frozen
+    # The value did not change — it is the last reading that got through, and
+    # it is still roughly right, which is exactly what makes it dangerous.
+    assert frozen.split("src:")[0] == before.split("src:")[0]
+
+    # Everything that is not carried by RT 12 is untouched: the twin on RT 5,
+    # the bus the cabin load sits on, and the load's own breaker.
+    assert "? STALE" not in _carried(d, "eps.load.avionics")
+    assert "? STALE" not in _carried(d, "eps.bus.a")
+    assert "cb.a1: CLOSED" in d.execute_line("eps cb.a1 read").text
+
+    # And it comes back when the terminal does.
+    d.execute_line("eps cb.a2 close")
+    sim.step_s(1.5)
+    assert "? STALE" not in _carried(d, "eps.load.cabin")
+
+
+def test_a_stale_source_takes_its_caution_quiet(tree: ContentTree) -> None:
+    """SOM 42-00-00 §6/§8: silence is not health. With the controller dark
+    there is no health report to monitor, so DATA BUS A DEGRADED must drop —
+    including a caution it was already holding — and every carried reading
+    must say stale rather than pretend to be current.
+    """
+    sim, d = powered_tb1_with_data(tree)
+    d.execute_line("eps cb.a2 open")  # RT 12 dark: the lamp latches on
+    sim.step_s(1.0)
+    assert "DATA BUS A DEGRADED" in d.execute_line("eps read").text
+
+    d.execute_line("eps cb.e2 open")  # now the controller itself
+    sim.step_s(3.0)
+
+    assert "NO DATA (bus controller unpowered)" in d.execute_line("data.db.a read").text
+    assert "DATA BUS A DEGRADED" not in d.execute_line("eps read").text
+    for address in ("eps.load.cabin", "eps.load.avionics"):
+        assert "? STALE" in _carried(d, address)
+    # The panel-wired instruments never blink: that asymmetry is the whole
+    # point of keeping them off the bus.
+    assert "? STALE" not in _carried(d, "eps.bus.e")
+
+
+def test_a_transport_casualty_leaves_every_other_instrument_untouched(tree: ContentTree) -> None:
+    """Losing a reading must cost exactly that reading. A stub break is
+    electrically inert — the harness carries no load — so every panel-wired
+    instrument has to read identically, tick for tick, against the same seed.
+    A transport fault that perturbed the rest of the panel would be a
+    determinism leak dressed up as a casualty.
+    """
+
+    def bus_readings(*, break_the_stub: bool) -> list[str]:
+        sim, d = powered_tb1_with_data(tree)
+        if break_the_stub:
+            inject_fault(sim, "stub.j2-rt12", "open")
+        readings = []
+        for _ in range(20):
+            sim.step(1)
+            for address in ("eps.bus.e", "eps.bus.a", "eps.bat.1"):
+                readings.append(d.execute_line(f"{address} read").text.split("src:")[0])
+        return readings
+
+    healthy = bus_readings(break_the_stub=False)
+    broken = bus_readings(break_the_stub=True)
+    assert healthy == broken

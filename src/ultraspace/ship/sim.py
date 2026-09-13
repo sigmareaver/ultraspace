@@ -30,7 +30,7 @@ from ultraspace.ship.devices import (
     build_device,
     refused,
 )
-from ultraspace.ship.telemetry import TelemetryItem, TelemetryStore
+from ultraspace.ship.telemetry import STALE_AFTER_TICKS, TelemetryItem, TelemetryStore
 
 __all__ = ["Simulation"]
 
@@ -103,11 +103,27 @@ class Simulation:
                     device.bind_interlock(target)
 
         self._xducer_parts = {spec.id: tree.parts[spec.part] for spec in self._xducers}
+        self._carriers = self._bind_carriers()
 
         self.scheduler.register(Phase.NETWORKS, "electrical", self._electrical_task)
         self.scheduler.register(Phase.NETWORKS, "data", self._data_task)
         self.scheduler.register(Phase.INSTRUMENTS, "instruments", self._instruments_task)
         self.scheduler.register(Phase.ANNUNCIATORS, "annunciators", self._annunciators_task)
+
+    def _bind_carriers(self) -> dict[str, RemoteTerminal]:
+        """Transducer id -> the RT that transports it; absent means panel-wired.
+
+        Panel wiring is the default and the reason cold start works at all:
+        SOM 24-30-01 reads BUS E before any data bus exists (ata-42 §4).
+        """
+        carriers: dict[str, RemoteTerminal] = {}
+        for spec in self._xducers:
+            if spec.carried_by is None:
+                continue
+            carrier = self.devices[spec.carried_by]
+            assert isinstance(carrier, RemoteTerminal)  # loader-validated
+            carriers[spec.id] = carrier
+        return carriers
 
     def _attach_data_device(self, spec: DeviceSpec, device: ElectricalDevice) -> None:
         """Register a data-bus device with its bus model (ata-42 §9).
@@ -186,9 +202,32 @@ class Simulation:
                 )
                 bus.poll(rt.address, answered)
 
+    def _delivered(self, xducer_id: str) -> bool:
+        """Did this transducer's sample reach the store this tick?
+
+        Panel-wired transducers always deliver — copper, no network (§4), and
+        cold start depends on it. A carried one delivers only when its
+        controller is powered *and* its terminal answered the poll issued this
+        tick; ``answered_last`` alone would go stale the moment the BC stops
+        polling, which is precisely the BC-unpowered case.
+        """
+        carrier = self._carriers.get(xducer_id)
+        if carrier is None:
+            return True
+        assert carrier.spec.data_bus is not None  # loader-validated
+        bc = self._bcs.get(carrier.spec.data_bus)
+        if bc is None or not bc.energized:
+            return False
+        return bc.bus.rt(carrier.address).answered_last
+
     def _instruments_task(self, tick: int) -> None:
-        # M1: transducers are rig-powered (TB-1 is a breadboard); they move onto
-        # ship buses + the data network at M2 (ata-24-eps.md §4).
+        """Sample every transducer; publish the ones whose transport delivered.
+
+        The sensor keeps sensing whatever the bus is doing: the noise stream is
+        drawn unconditionally, so a bus casualty can never shift the RNG
+        sequence (ADR-0002). What a dark terminal costs is *delivery* — the
+        store keeps the last item that got through and it ages (§4).
+        """
         for spec in self._xducers:
             part = self._xducer_parts[spec.id]
             noise = self.rng.stream(f"sensor/{spec.id}/noise")
@@ -206,9 +245,10 @@ class Simulation:
                 assert isinstance(battery, Battery)
                 value = battery.soc + noise.gauss(0.0, part.params["sigma_frac"])
                 unit = "frac"
-            self.telemetry.publish(
-                TelemetryItem(spec.id, value, unit, f"{spec.id} ({part.part_number})", tick)
-            )
+            if self._delivered(spec.id):
+                self.telemetry.publish(
+                    TelemetryItem(spec.id, value, unit, f"{spec.id} ({part.part_number})", tick)
+                )
         for bc in self._bcs.values():  # instruments are devices: unpowered = silent
             if bc.energized:
                 self.telemetry.publish(
@@ -255,10 +295,15 @@ class Simulation:
         item = self.telemetry.read(device_id)
         if item is None:
             return CommandResult(True, f"{device_id}: --- NO DATA (no report yet)")
-        age_s = (self.clock.tick_index - item.tick) * DT_S
+        age_ticks = self.clock.tick_index - item.tick
+        age_s = age_ticks * DT_S
+        # Teletype has no dim, so the word carries what the panel says with
+        # style: past the horizon the reading is marked, not hidden (§4).
+        tag = "  ? STALE" if age_ticks > STALE_AFTER_TICKS else ""
         return CommandResult(
             True,
-            f"{device_id}: {item.value:8.3f} {item.unit:<4} src: {item.source}  age {age_s:.1f} s",
+            f"{device_id}: {item.value:8.3f} {item.unit:<4} "
+            f"src: {item.source}  age {age_s:.1f} s{tag}",
         )
 
     def summary(self) -> str:

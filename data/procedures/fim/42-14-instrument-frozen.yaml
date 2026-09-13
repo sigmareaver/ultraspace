@@ -1,0 +1,136 @@
+schema: procedure/1
+id: fim-42-14
+title: "Instrument Reading Frozen"
+manual_ref: "FIM 42-14"
+ship: core:tb-1
+# A routing tree, not a repair tree: it decides whether the fault is in the
+# reporting chain or in the system being reported on, and hands off.
+#
+# The discipline is the order. Panel-wired instruments cannot go stale, so
+# the bus voltage and the breaker position are read FIRST — before the data
+# network is blamed for anything. Two of the five exits leave ATA 42
+# entirely, and they are the reason the section exists: a gauge frozen at a
+# healthy value while its bus is dead reads like good news.
+steps:
+  - step: 1
+    scl: "eps.load.cabin read"
+    expect_text: "? STALE"
+    on_pass_goto: 3
+    on_fail_goto: 2
+    note: "Which indication has stopped? Cabin load current (carried by RT 12)."
+  - step: 2
+    scl: "eps.load.avionics read"
+    expect_text: "? STALE"
+    on_pass_goto: 12
+    on_fail_goto: 21
+    note: "Avionics load current (carried by RT 5). Neither stale → entry symptom absent."
+  # -- cabin chain: BUS A, CB A1, RT 12 --
+  - step: 3
+    scl: "eps.bus.a read"
+    expect_telemetry: mt.bus.a.v
+    expect_min: 24.0
+    within_s: 2.0
+    on_pass_goto: 4
+    on_fail_goto: 8
+    note: "Panel-wired, cannot be stale: is the load's bus alive at all?"
+  - step: 4
+    scl: "eps.cb.a1 read"
+    expect_text: "cb.a1: CLOSED"
+    on_pass_goto: 5
+    on_fail_goto: 9
+    note: "Panel observation, cannot be stale: is the load actually being fed?"
+  - step: 5
+    scl: "data.db.a read"
+    expect_text: "NO DATA (bus controller unpowered)"
+    on_pass_goto: 6
+    on_fail_goto: 7
+    note: "Load proven healthy — now the reporting chain. Is the controller even alive?"
+  - step: 6
+    scl: "eps.cb.e2 read"
+    expect_text: "cb.e2:"
+    on_pass_goto: 0
+    note: "VERDICT: controller unpowered — every carried indication is stale and DEGRADED cannot fire (42-00-00 §6). CB E2, BUS E."
+  - step: 7
+    scl: "data.db.a read"
+    expect_text: "12   NO RESPONSE"
+    on_pass_goto: 10
+    on_fail_goto: 11
+    note: "Controller alive: is the carrier terminal answering it?"
+  - step: 8
+    scl: "eps.bus.a read"
+    expect_text: "mt.bus.a.v"
+    on_pass_goto: 0
+    note: "EXIT: BUS A is down. Electrical casualty (ATA 24); the frozen gauge is a symptom of it, not a data fault."
+  - step: 9
+    scl: "eps.cb.a1 read"
+    expect_text: "cb.a1: OPEN"
+    on_pass_goto: 0
+    note: "EXIT: CB A1 is open — the cabin load really is off. Not a data fault; ask why the breaker is open."
+  - step: 10
+    scl: "data.db.a read"
+    expect_text: "12   NO RESPONSE"
+    on_pass_goto: 0
+    note: "VERDICT: carrier RT 12 is dark — a data casualty. Work it at FIM 42-11 §1; the indication returns with the terminal."
+  - step: 11
+    scl: "eps.load.cabin read"
+    expect_text: "? STALE"
+    on_pass_goto: 0
+    note: "VERDICT: bus healthy, carrier answering, indication still frozen — the transducer or its wiring to RT 12 (MAINT, pending)."
+  # -- avionics chain: BUS E, CB E1, RT 5 --
+  - step: 12
+    scl: "eps.bus.e read"
+    expect_telemetry: mt.bus.e.v
+    expect_min: 24.0
+    within_s: 2.0
+    on_pass_goto: 13
+    on_fail_goto: 17
+    note: "Panel-wired, cannot be stale: is the load's bus alive at all?"
+  - step: 13
+    scl: "eps.cb.e1 read"
+    expect_text: "cb.e1: CLOSED"
+    on_pass_goto: 14
+    on_fail_goto: 18
+    note: "Panel observation, cannot be stale: is the load actually being fed?"
+  - step: 14
+    scl: "data.db.a read"
+    expect_text: "NO DATA (bus controller unpowered)"
+    on_pass_goto: 15
+    on_fail_goto: 16
+    note: "Load proven healthy — now the reporting chain. Is the controller even alive?"
+  - step: 15
+    scl: "eps.cb.e2 read"
+    expect_text: "cb.e2:"
+    on_pass_goto: 0
+    note: "VERDICT: controller unpowered — every carried indication is stale (42-00-00 §6). CB E2, BUS E."
+  - step: 16
+    scl: "data.db.a read"
+    expect_text: "5    NO RESPONSE"
+    on_pass_goto: 19
+    on_fail_goto: 20
+    note: "Controller alive: is the carrier terminal answering it?"
+  - step: 17
+    scl: "eps.bus.e read"
+    expect_text: "mt.bus.e.v"
+    on_pass_goto: 0
+    note: "EXIT: BUS E is down. Electrical casualty (ATA 24), and with the essential bus gone you have larger problems than an ammeter."
+  - step: 18
+    scl: "eps.cb.e1 read"
+    expect_text: "cb.e1: OPEN"
+    on_pass_goto: 0
+    note: "EXIT: CB E1 is open — the avionics load really is off. Not a data fault."
+  - step: 19
+    scl: "data.db.a read"
+    expect_text: "5    NO RESPONSE"
+    on_pass_goto: 0
+    note: "VERDICT: carrier RT 5 is dark — a data casualty. Work it at FIM 42-11 §1."
+  - step: 20
+    scl: "eps.load.avionics read"
+    expect_text: "? STALE"
+    on_pass_goto: 0
+    note: "VERDICT: bus healthy, carrier answering, indication still frozen — the transducer or its wiring to RT 5 (MAINT, pending)."
+  # -- shared exit --
+  - step: 21
+    scl: "eps.load.cabin read"
+    expect_text: "age"
+    on_pass_goto: 0
+    note: "EXIT: no indication is stale — the entry symptom is absent. A reading that changed, changed for real: work the system it names (ATA 24)."

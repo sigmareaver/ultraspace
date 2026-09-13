@@ -62,12 +62,14 @@ BUS A  [bus.a]  12 mF
 
 ## Instrumentation {#instrumentation}
 
-| Telemetry ID | P/N | Measures | Unit | SCL |
-|---|---|---|---|---|
-| mt.bus.e.v | 24-150-001 | bus.e | V | `eps.bus.e` |
-| mt.bus.a.v | 24-150-001 | bus.a | V | `eps.bus.a` |
-| mt.bat.1.i | 24-150-002 | ctr.bat1 | A | `eps.bat.1` |
-| mt.bat.1.soc | 24-150-003 | bat1 | frac | `eps.bat.1` |
+| Telemetry ID | P/N | Measures | Unit | SCL | Reported via |
+|---|---|---|---|---|---|
+| mt.bus.e.v | 24-150-001 | bus.e | V | `eps.bus.e` | panel-wired |
+| mt.bus.a.v | 24-150-001 | bus.a | V | `eps.bus.a` | panel-wired |
+| mt.bat.1.i | 24-150-002 | ctr.bat1 | A | `eps.bat.1` | panel-wired |
+| mt.bat.1.soc | 24-150-003 | bat1 | frac | `eps.bat.1` | panel-wired |
+| mt.load.cabin.i | 24-150-002 | load.cabin | A | `eps.load.cabin` | `rt.12` |
+| mt.load.avionics.i | 24-150-002 | load.avionics | A | `eps.load.avionics` | `rt.5` |
 
 ## Parts list (IPC extract) {#parts-list}
 
@@ -80,7 +82,7 @@ BUS A  [bus.a]  12 mF
 | 24-120-005 | Circuit breaker, 5 A | 4 | 0.1 kg |
 | 24-120-010 | Circuit breaker, 10 A | 1 | 0.1 kg |
 | 24-150-001 | Voltage transducer, DC bus | 2 | 0.05 kg |
-| 24-150-002 | Current transducer, hall effect | 1 | 0.08 kg |
+| 24-150-002 | Current transducer, hall effect | 3 | 0.08 kg |
 | 24-150-003 | Battery monitor, state of charge | 1 | 0.12 kg |
 | 24-190-060 | Equipment load, 60 W class | 1 | 4 kg |
 | 24-190-150 | Equipment load, 150 W class | 1 | 6.5 kg |

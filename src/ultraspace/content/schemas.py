@@ -125,6 +125,7 @@ class DeviceSpec(_Model):
     interlock_open: str | None = None  # device id that must be OPEN (precharge law)
     data_bus: str | None = None  # bc/rt: data bus id this device attaches to
     ends: dict[str, str] = Field(default_factory=dict)  # harness_seg: {a, b} bus-member ids
+    carried_by: str | None = None  # xducer: RT device id that transports it (None = panel-wired)
     params: dict[str, float] = Field(default_factory=dict)  # instance overrides (soc_init)
 
 

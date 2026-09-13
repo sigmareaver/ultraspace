@@ -26,10 +26,12 @@ from ultraspace.presentation.tui.palette import (
 )
 from ultraspace.ship import Simulation
 from ultraspace.ship.sim import DT_S
+from ultraspace.ship.telemetry import STALE_AFTER_TICKS
 
 __all__ = ["DocsStation", "EpsStation", "LogStation", "render_eps"]
 
-_STALE_AGE_S = 1.0  # older than this gets the visible `?` tag (No God View)
+# One horizon for the whole ship: the reading the panel dims is the reading a
+# monitor stops trusting and the printed line marks `? STALE` (ata-42 §4).
 _STATE_CELL_W = 12  # tree state column width (glyph + word + pad) for tail alignment
 
 _DOCS_WELCOME = """\
@@ -74,8 +76,9 @@ def _measurement_lines(sim: Simulation) -> list[Text]:
     for telemetry_id in ids:
         item = sim.telemetry.read(telemetry_id)
         assert item is not None  # ids() only lists published items
-        age_s = (sim.clock.tick_index - item.tick) * DT_S
-        stale = age_s > _STALE_AGE_S
+        age_ticks = sim.clock.tick_index - item.tick
+        age_s = age_ticks * DT_S
+        stale = age_ticks > STALE_AFTER_TICKS
         tag = f"  {STALE_GLYPH}" if stale else ""
         lines.append(
             Text(

@@ -126,13 +126,16 @@ def _validate_ship_refs(tree: ContentTree, ship_id: str, ship: ShipSpec) -> None
     if len(bus_ids) != len(ship.data_buses):
         err("duplicate data bus ids")
 
+    behaviors: dict[str, str] = {}
     for device in ship.devices:
         part = tree.parts.get(device.part)
         if part is None:
             err(f"device {device.id!r}: unknown part {device.part!r}")
             continue
+        behaviors[device.id] = part.behavior
         _validate_device_refs(err, device, part.behavior, node_ids, device_ids)
 
+    _validate_carriage(err, ship, behaviors)
     _validate_data_bus_refs(err, ship, bus_ids, tree)
 
     for ann in ship.annunciators:
@@ -208,6 +211,32 @@ def _accumulate_data_device(
         err(f"harness {device.id!r}: needs ends {{a, b}}")
     else:
         acc.segments[device.data_bus].append((device.ends["a"], device.ends["b"]))
+
+
+def _validate_carriage(
+    err: Callable[[str], None], ship: ShipSpec, behaviors: dict[str, str]
+) -> None:
+    """`carried_by` names the RT that transports a transducer's samples.
+
+    Absent means panel-wired — hard copper to the indication, the M1 form and
+    still the default, and what cold start depends on (spec §4). Present must
+    name a real RT on this ship: a transducer routed through something that is
+    not a terminal would never go stale for any reason the manuals can teach.
+    """
+    for device in ship.devices:
+        if device.carried_by is None:
+            continue
+        behavior = behaviors.get(device.id)
+        if behavior is not None and not behavior.startswith("xducer"):
+            err(f"device {device.id!r}: 'carried_by' invalid for behavior {behavior}")
+        carrier = behaviors.get(device.carried_by)
+        if carrier is None:
+            err(f"xducer {device.id!r}: carried_by unknown device {device.carried_by!r}")
+        elif carrier != "rt":
+            err(
+                f"xducer {device.id!r}: carried_by {device.carried_by!r} is a "
+                f"{carrier}, not a remote terminal"
+            )
 
 
 def _validate_rt_address(err: Callable[[str], None], device: DeviceSpec, seen: set[int]) -> None:

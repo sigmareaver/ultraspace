@@ -170,6 +170,21 @@ devices:
     measures: bat2
     scl: eps.bat.2
 
+  # Remote current transducers (ata-42-data.md §4): sited at their loads and
+  # reported through the terminal in that bay, so a dark RT sends the reading
+  # stale while the load itself keeps drawing. The bus and battery instruments
+  # stay panel-wired — SOM 24-30-01 step 1 reads BUS E with the ship dark.
+  - id: mt.load.cabin.i
+    part: core:xducer-i
+    measures: load.cabin
+    carried_by: rt.12
+    scl: eps.load.cabin
+  - id: mt.load.avionics.i
+    part: core:xducer-i
+    measures: load.avionics
+    carried_by: rt.5
+    scl: eps.load.avionics
+
 annunciators:
   - id: ann.bus.e.uv
     telemetry: mt.bus.e.v

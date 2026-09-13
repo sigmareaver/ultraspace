@@ -6,6 +6,8 @@ from dataclasses import replace
 
 from ultraspace.content import ContentTree
 from ultraspace.ship import Simulation
+from ultraspace.ship.devices import RemoteTerminal
+from ultraspace.ship.telemetry import STALE_AFTER_TICKS
 from ultraspace.testing import raw_bus_voltage_v, raw_device
 
 
@@ -149,3 +151,58 @@ def test_blueprint_order_does_not_decide_whether_a_ship_builds(tree: ContentTree
     sim = Simulation(reordered, "core:tb-1", master_seed=42)
 
     assert sim.data_buses["db.a"].reachable("rt.12", "bc.a")
+
+
+def _powered_with_data(tree: ContentTree) -> Simulation:
+    """Everything closed, bus healthy — the state every transport test starts in."""
+    sim = Simulation(tree, "core:tb-1", master_seed=42)
+    for address, flags in (
+        ("eps.bat.1.contactor", {"confirm"}),
+        ("eps.cb.e1", set[str]()),
+        ("eps.bus.a.precharge", set[str]()),
+    ):
+        verb = "start" if address.endswith("precharge") else "close"
+        assert sim.execute(address, verb, flags).ok
+    sim.step(20)
+    assert sim.execute("eps.bus.a.tie", "close", {"confirm"}).ok
+    for address in ("eps.cb.a1", "eps.cb.a2", "eps.cb.e3", "eps.cb.e2"):
+        assert sim.execute(address, "close", set()).ok
+    sim.step(20)
+    return sim
+
+
+def test_a_sensor_keeps_sensing_while_its_transport_is_down(tree: ContentTree) -> None:
+    """Determinism (ADR-0002): transport failure must not shift the RNG.
+
+    The noise stream is drawn every tick whether or not the carrier delivers,
+    so a run that loses RT 12 for two seconds and gets it back must land on
+    exactly the sample a run that never lost it would have had at that tick.
+    If delivery gated the *draw*, the two would diverge forever after — and
+    replaying a recorded session would stop reproducing it.
+    """
+    undisturbed = _powered_with_data(tree)
+    undisturbed.step(40)
+    expected = read_value(undisturbed, "mt.load.cabin.i")
+
+    blacked_out = _powered_with_data(tree)
+    rt12 = raw_device(blacked_out, "rt.12")
+    assert isinstance(rt12, RemoteTerminal)
+    rt12.dead = True  # silent module: electrically inert, so the load is unchanged
+    blacked_out.step(20)
+    assert blacked_out.telemetry.fresh("mt.load.cabin.i", blacked_out.clock.tick_index) is None
+    rt12.dead = False
+    blacked_out.step(20)
+
+    assert read_value(blacked_out, "mt.load.cabin.i") == expected
+
+
+def test_freshness_horizon_is_the_published_tick_plus_the_constant(tree: ContentTree) -> None:
+    """`fresh` is the monitors' contract, so its edge is worth pinning: an item
+    is fresh for STALE_AFTER_TICKS ticks after its own, and stale on the next.
+    """
+    sim = _powered_with_data(tree)
+    item = sim.telemetry.read("mt.bus.e.v")
+    assert item is not None
+    assert sim.telemetry.fresh("mt.bus.e.v", item.tick + STALE_AFTER_TICKS) is item
+    assert sim.telemetry.fresh("mt.bus.e.v", item.tick + STALE_AFTER_TICKS + 1) is None
+    assert sim.telemetry.read("mt.bus.e.v") is item  # still readable, just old
