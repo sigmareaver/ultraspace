@@ -126,8 +126,23 @@ checklist lives there; walk it before declaring anything finished.
   (open/short), transformer-coupled containment, partition contiguity; DMM
   ohms probe points (de-energize interlock); repair verbs; WDM 42 sheets;
   FIM 42-12 executable with per-fault verdict paths; `expect_text` branching
-  in the runner. Next increments: sensor transport onto the bus, stress/fault
-  scheduling, DB-B failover, FIM 42-13, MEL, thermal loop v1.
+  in the runner.
+- **Increment 3 review + repair pass, 2026-09-12** (66eb23d..ba43d5b): the
+  harness increment had shipped lint-red and with coupler faults unwalked —
+  FIM 42-12 convicted innocent parts and died on a refusal for three of the
+  fourteen injectable faults. Fixed: `ohms_at` tells the truth at a shorted
+  coupler's own probe point; the tree convicts couplers (both-ways-zero,
+  neighbour-side OL, replace-verify-escalate ladder for the one pair ohms
+  cannot split); `repair` no longer refuses on a sound part (that refusal was
+  a free verdict — No God View); harness wiring is a second assembly pass
+  (blueprint order no longer decides whether a ship builds); loader checks
+  every bus member, not just RTs; SCL refusals name the verbs a device
+  answers. Conformance derives its fault set from the blueprint, so fitting
+  harness hardware without a verdict path now fails the build. Spec v0.4;
+  playtest note 2026-09-12.
+- Next increments: sensor transport onto the bus, stress/fault scheduling,
+  DB-B failover, FIM 42-13 (the controller — the only harness-tree exit left),
+  MEL, thermal loop v1.
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline
