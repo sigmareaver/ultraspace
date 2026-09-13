@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+from ultraspace.content import ContentTree
 from ultraspace.ship import Simulation
 from ultraspace.testing import raw_bus_voltage_v, raw_device
 
@@ -129,3 +132,20 @@ def test_inrush_trip_after_journaled_command_same_tick(tb1: Simulation) -> None:
     assert result.ok and "TRIPPED" in result.text  # no kernel exception reaches us
     trip = [e for e in tb1.log if e.kind == "inrush-trip"][-1]
     assert trip.tick == tb1.clock.tick_index
+
+
+def test_blueprint_order_does_not_decide_whether_a_ship_builds(tree: ContentTree) -> None:
+    """Regression: harness segments used to be wired during the device walk,
+    so a blueprint that listed a run before its endpoints crashed the builder
+    with a raw ValueError — on content the validator had just passed
+    (ata-42-data.md §9: harness errors are load-time, never assembly-time).
+    """
+    ship = tree.ships["core:tb-1"].model_copy(deep=True)
+    segments = [d for d in ship.devices if d.ends]
+    assert segments, "TB-1 ships a data harness"
+    ship.devices = segments + [d for d in ship.devices if not d.ends]  # runs first
+    reordered = replace(tree, ships={**tree.ships, "core:tb-1": ship})
+
+    sim = Simulation(reordered, "core:tb-1", master_seed=42)
+
+    assert sim.data_buses["db.a"].reachable("rt.12", "bc.a")

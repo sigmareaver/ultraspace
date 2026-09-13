@@ -74,6 +74,7 @@ class Simulation:
             spec.id: [] for spec in self.ship.data_buses
         }
 
+        harness: list[DeviceSpec] = []  # segment specs, wired in a second pass
         for spec in self.ship.devices:
             part = tree.parts[spec.part]
             if part.behavior in _ELECTRICAL:
@@ -82,12 +83,17 @@ class Simulation:
                     device.bind(self.net, self.log, self.clock)
                 if spec.data_bus is not None:
                     self._attach_data_device(spec, device)
+                    if isinstance(device, HarnessSegment):
+                        harness.append(spec)
                 self.devices[spec.id] = device
                 self._electrical.append(device)
             elif part.behavior in _XDUCERS:
                 self._xducers.append(spec)
             if spec.scl is not None:
                 self.address_map.setdefault(spec.scl, []).append(spec.id)
+
+        for segment_spec in harness:  # segments join members, so members go first
+            self._wire_harness_segment(segment_spec)
 
         for spec in self.ship.devices:  # second pass: interlock references
             if spec.interlock_open is not None:
@@ -123,8 +129,18 @@ class Simulation:
             bus.register_junction(spec.id)
             device.bind(bus, self._de_energized_gate(spec.data_bus), self.log, self.clock)
         elif isinstance(device, HarnessSegment):
-            bus.add_segment(spec.id, spec.ends["a"], spec.ends["b"])
             device.bind(bus, self._de_energized_gate(spec.data_bus), self.log, self.clock)
+
+    def _wire_harness_segment(self, spec: DeviceSpec) -> None:
+        """Second assembly pass: join two bus members with a harness run.
+
+        Segments name their ends by device id, so every BC/RT/coupler must be
+        registered first — otherwise blueprint *order* would decide whether a
+        ship builds, and content that passes `validate` could still crash the
+        builder (ata-42-data.md §9: harness errors are load-time, always).
+        """
+        assert spec.data_bus is not None  # loader-validated
+        self.data_buses[spec.data_bus].add_segment(spec.id, spec.ends["a"], spec.ends["b"])
 
     def _de_energized_gate(self, bus_id: str) -> Callable[[], bool]:
         def de_energized() -> bool:
