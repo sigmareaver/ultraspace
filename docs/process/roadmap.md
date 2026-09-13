@@ -75,6 +75,15 @@ content, and a No-God-View leak in the `repair` refusal. All fixed
 (66eb23d..51a92bd); conformance now derives its fault set from the blueprint so
 the coverage gap cannot recur. Note:
 [playtests/2026-09-12-m2-harness-tree.md](playtests/2026-09-12-m2-harness-tree.md).
+Progress 2026-09-12: sensor transport ✅ — remote transducers ride their RT
+(`carried_by`), so a dark terminal freezes the readings it carries while the
+measured load keeps drawing: the U4 step-3 symptom at last, displays wrong
+with the cabin fine. Telemetry gains one staleness horizon shared by the
+panel, the printed line (`? STALE`) and the monitors — a stale source takes
+its caution quiet, which makes SOM 42-00-00 §6's promise true in the sim.
+FIM 42-14 (executable) routes a frozen indication: panel-wired instruments
+first, so a dead bus is never mistaken for a data fault. Note:
+[playtests/2026-09-12-m2-sensor-transport.md](playtests/2026-09-12-m2-sensor-transport.md).
 
 - Data network (DB-A/B, RT/BC, message schedules, bus analyzer tool); thermal loop v1
   (enough to make electronics care about heat); L2 forensic tier for PDU boards

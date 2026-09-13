@@ -140,9 +140,22 @@ checklist lives there; walk it before declaring anything finished.
   answers. Conformance derives its fault set from the blueprint, so fitting
   harness hardware without a verdict path now fails the build. Spec v0.4;
   playtest note 2026-09-12.
-- Next increments: sensor transport onto the bus, stress/fault scheduling,
-  DB-B failover, FIM 42-13 (the controller — the only harness-tree exit left),
-  MEL, thermal loop v1.
+- **Increment 4 landed 2026-09-12**: sensor transport. Transducers may declare
+  `carried_by: <rt>` — loader-validated, transducer-only — and a carried one
+  publishes only in ticks where its terminal answered the BC; the noise stream
+  is still drawn every tick, so a bus casualty cannot shift replay. Bus and
+  battery instruments stay panel-wired on purpose: SOM 24-30-01 step 1 reads
+  BUS E with the ship cold. `STALE_AFTER_TICKS` (telemetry.py) is now the one
+  horizon for the panel, the SCL line (`? STALE`) and the monitors;
+  `TelemetryStore.fresh` is the monitors' read, so a stale source goes quiet
+  and releases a latched caution. TB-1 + Kestrel fit two remote ammeters on
+  different feeds; WDM instrumentation tables gained a *Reported via* column;
+  FIM 42-14 (*Instrument Reading Frozen*) is executable with a case per entry,
+  including the two that route out of ATA 42 entirely. Spec v0.5; playtest note
+  2026-09-12 (sensor transport).
+- Next increments: stress/fault scheduling + intermittents, DB-B failover,
+  FIM 42-13 (the controller — the only harness-tree exit left), QRH v1 (caution
+  priority — playtest friction), MEL, thermal loop v1.
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline
