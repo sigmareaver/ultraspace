@@ -237,3 +237,23 @@ def test_bc_up_before_rt_feeds_annunciates_then_recovers(tree: ContentTree) -> N
     d.execute_line("eps cb.e3 close")
     sim.step(2)
     assert "DATA BUS A DEGRADED" not in d.execute_line("eps read").text
+
+
+def test_replacing_a_sound_part_gives_the_player_no_free_verdict(tree: ContentTree) -> None:
+    """A refusal that said "nothing to repair" would tell the player the part
+    is good — a verdict no DMM reading gave them (No God View). Replacing a
+    sound run succeeds and reads exactly like replacing a broken one; only
+    re-energizing and reading the table settles it.
+    """
+    sim, d = powered_tb1_with_data(tree)
+    inject_fault(sim, "seg.j1-j2", "short")
+    sim.step(4)
+    _de_energize_db_a(d, sim)
+
+    innocent = d.execute_line("data.db.a.stub.j1-rt5 repair")  # a sound stub
+    guilty = d.execute_line("data.db.a.seg.j1-j2 repair")  # the actual short
+    assert innocent.ok and guilty.ok
+    assert innocent.text.split(":", 1)[1] == guilty.text.split(":", 1)[1]
+
+    _re_energize_db_a(d, sim)
+    assert "HEALTHY" in d.execute_line("data.db.a read").text

@@ -370,17 +370,26 @@ class RemoteTerminal(DataDevice):
         return self._repair()
 
     def _repair(self) -> CommandResult:
-        """Module replacement (field form; MAINT attaches spares/time later)."""
+        """Module replacement (field form; MAINT attaches spares/time later).
+
+        Replacing a sound module is allowed and says nothing: the shop does
+        not know what it just swapped out, and neither does the readout. The
+        FDR keeps the truth for review (No God View — see HarnessElement).
+        """
         assert self._de_energized is not None and self._log is not None and self._clock
         bus_id = self.spec.data_bus
         if not self._de_energized():
             return refused(f"{self.id}: de-energize {bus_id} before working on it (FIM 42-12)")
-        if not self.dead and not self.stuck_dominant:
-            return refused(f"{self.id}: nothing to repair")
+        found = self.dead or self.stuck_dominant
         self.dead = False
         self.stuck_dominant = False
-        self._log.append(self._clock.tick_index, self.id, "repair", {"result": "module replaced"})
-        return CommandResult(True, f"{self.id}: module replaced")
+        self._log.append(
+            self._clock.tick_index,
+            self.id,
+            "repair",
+            {"result": "module replaced", "fault_found": found},
+        )
+        return CommandResult(True, f"{self.id}: module replaced — verify (FIM 42-12 §4)")
 
 
 class BusController(DataDevice):
@@ -438,7 +447,14 @@ class HarnessElement(ElectricalDevice):
     """Passive data-harness hardware (couplers, twinax runs): no electrical
     stamp. Fault state lives in the bus model — the medium is the truth —
     and the device is the operator surface: probe points and the `repair`
-    verb (ata-42-data.md §6). Field-form repair; MAINT attaches cost later."""
+    verb (ata-42-data.md §6). Field-form repair; MAINT attaches cost later.
+
+    `repair` replaces the run or coupler whatever its state, and reports the
+    same either way. Refusing "nothing to repair" on a sound part would hand
+    the player a verdict no instrument gave them (No God View); replacing a
+    good cable is a wasted part, which is the honest cost of a guess. Whether
+    a fault was actually there goes to the FDR, for review afterwards.
+    """
 
     def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
         # Attribute assignments must precede super().__init__: the base
@@ -481,11 +497,12 @@ class HarnessElement(ElectricalDevice):
             return refused(
                 f"{self.id}: de-energize {self._bus.id} before working on it (FIM 42-12)"
             )
-        if self.state == "ok":
-            return refused(f"{self.id}: nothing to repair")
+        found = self.state != "ok"
         self.state = "ok"
-        self._log.append(self._clock.tick_index, self.id, "repair", {"result": "fault cleared"})
-        return CommandResult(True, f"{self.id}: repaired — fault cleared")
+        self._log.append(
+            self._clock.tick_index, self.id, "repair", {"result": "replaced", "fault_found": found}
+        )
+        return CommandResult(True, f"{self.id}: replaced — verify (FIM 42-12 §4)")
 
 
 class BusJunction(HarnessElement):

@@ -49,7 +49,7 @@ steps:
     note: "Probe J2: OL on the stub tap = the stub is open, not the board."
   - step: 9
     scl: "data.db.a.stub.j2-rt12 repair"
-    expect_text: "repaired"
+    expect_text: "replaced"
     on_pass_goto: 32
     note: "VERDICT: stub fault — the run is replaced."
   - step: 10
@@ -66,7 +66,7 @@ steps:
     note: "Stub reads good: check the trunk toward the BC — OL = break between the couplers."
   - step: 12
     scl: "data.db.a.seg.j1-j2 repair"
-    expect_text: "repaired"
+    expect_text: "replaced"
     on_pass_goto: 32
     note: "VERDICT: trunk break — the segment is replaced."
   - step: 13
@@ -95,7 +95,7 @@ steps:
     note: "Probe J1: OL on the stub tap = the stub is open."
   - step: 19
     scl: "data.db.a.stub.j1-rt5 repair"
-    expect_text: "repaired"
+    expect_text: "replaced"
     on_pass_goto: 32
     note: "VERDICT: stub fault — the run is replaced."
   - step: 20
@@ -130,7 +130,7 @@ steps:
     note: "OL toward the BC = the break is in seg.bc-j1."
   - step: 27
     scl: "data.db.a.seg.bc-j1 repair"
-    expect_text: "repaired"
+    expect_text: "replaced"
     on_pass_goto: 32
     note: "VERDICT: seg.bc-j1 replaced."
   - step: 28
@@ -147,7 +147,7 @@ steps:
     note: "~0 toward J2 = seg.j1-j2 is shorted."
   - step: 30
     scl: "data.db.a.seg.j1-j2 repair"
-    expect_text: "repaired"
+    expect_text: "replaced"
     on_pass_goto: 32
     note: "VERDICT: seg.j1-j2 replaced."
   - step: 31
