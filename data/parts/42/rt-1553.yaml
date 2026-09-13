@@ -9,4 +9,14 @@ behavior: rt
 params:
   r_ohm: 156.8   # 28^2 / 5 W input load
   min_v: 20.0    # below this rail the terminal stops answering (power gate)
+hazard:
+  # Latch-up: a parasitic conduction path opened by a charged particle. Linear
+  # in flux (one particle, one chance), and impossible without a live rail —
+  # which is what makes shedding a terminal a real defence (SOM 42-00-00 §10).
+  # 1.67e-7/s at the quiet background is ~70 days per terminal; at the peak of
+  # a severe event, about a minute.
+  stuck_dominant:
+    rate_per_h: 6.0e-4
+    radiation: 1.0
+    needs_rail: true
 docs: [som/42-00-00, som/42-30-01]

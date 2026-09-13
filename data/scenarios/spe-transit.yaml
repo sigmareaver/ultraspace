@@ -1,0 +1,16 @@
+schema: scenario/1
+id: spe-transit
+name: "Solar particle event in transit"
+ship: core:tb-1
+seed: 1553
+# The U4 story's first act, as content. Quiet cruise, then a flare: the flux
+# climbs three and a half orders over four minutes, holds at the peak for two,
+# and decays. Nothing is scripted to break — whether a terminal latches up is
+# the stress model's business, and at the peak it is very likely (SOM 42-00-00
+# §9). The crew's warning is the monitor and nothing else.
+environment:
+  - {at_s: 0.0,    flux_cm2s: 0.1}
+  - {at_s: 60.0,   flux_cm2s: 0.1}
+  - {at_s: 300.0,  flux_cm2s: 4000.0}
+  - {at_s: 420.0,  flux_cm2s: 4000.0}
+  - {at_s: 900.0,  flux_cm2s: 0.1}

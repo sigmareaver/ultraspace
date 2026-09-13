@@ -64,9 +64,10 @@ def test_opening_the_babbling_feed_unjams_then_closing_clears(tree: ContentTree)
 def test_injection_is_logged_and_validated(tree: ContentTree) -> None:
     sim = powered_data_sim(tree)
     inject_fault(sim, "rt.5", "stuck_dominant")
-    injected = [e for e in sim.log if e.kind == "fault-injected"]
-    assert injected[-1].source == "testing"
-    assert injected[-1].payload == {"device": "rt.5", "mode": "stuck_dominant"}
+    # Injection goes through the one fault door; only the issuer marks it as
+    # an injection (faults.py), so the FDR record is the ordinary onset record.
+    injected = [e for e in sim.log if e.kind == "fault-onset" and e.source == "rt.5"]
+    assert injected[-1].payload == {"mode": "stuck_dominant", "by": "testing"}
     with pytest.raises(ValueError, match="unknown fault mode"):
         inject_fault(sim, "rt.5", "explode")
     with pytest.raises(ValueError, match="unknown device"):

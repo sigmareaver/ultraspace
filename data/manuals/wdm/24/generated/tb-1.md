@@ -90,3 +90,4 @@ BUS A  [bus.a]  12 mF
 | 42-110-001 | Data bus remote terminal, 1553 family | 2 | 0.9 kg |
 | 42-120-001 | Data bus coupler, transformer-isolated | 2 | 0.3 kg |
 | 42-130-001 | Data bus twinax run (trunk/stub) | 4 | 0.2 kg |
+| 42-160-001 | SEU environment monitor, avionics bay | 1 | 0.35 kg |

@@ -1,0 +1,11 @@
+schema: part/1
+id: xducer-seu
+part_number: "42-160-001"
+name: "SEU environment monitor, avionics bay"
+ata: 42
+tech_level: 0
+mass_kg: 0.35
+behavior: xducer_flux
+params:
+  sigma_cm2s: 0.02   # counting noise on the particle telescope
+docs: [som/42-00-00, som/42-30-02]

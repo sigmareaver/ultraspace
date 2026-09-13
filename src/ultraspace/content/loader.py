@@ -16,10 +16,12 @@ import yaml
 from pydantic import ValidationError
 
 from ultraspace.content.schemas import (
+    HAZARD_MODES,
     REQUIRED_PORTS,
     DeviceSpec,
     PartSpec,
     ProcedureSpec,
+    ScenarioSpec,
     ShipSpec,
 )
 
@@ -28,13 +30,18 @@ __all__ = ["ContentError", "ContentTree", "load_tree"]
 PACK = "core"  # M1: single built-in pack; packs/ namespacing lands with mod support
 GROUND_NODE = "gnd"
 
-#: Behaviors that publish telemetry without a `measures` field (BC health).
-_TELEMETRY_BEHAVIORS = ("bc",)
+#: Behaviors that publish telemetry without a `measures` field: the BC reports
+#: its own bus health, and the environment monitor measures the outside — which
+#: is not a node or a device, and so cannot be named by `measures`.
+_TELEMETRY_BEHAVIORS = ("bc", "xducer_flux")
 
-_SCHEMAS: dict[str, type[PartSpec] | type[ShipSpec] | type[ProcedureSpec]] = {
+_Spec = PartSpec | ShipSpec | ProcedureSpec | ScenarioSpec
+
+_SCHEMAS: dict[str, type[PartSpec] | type[ShipSpec] | type[ProcedureSpec] | type[ScenarioSpec]] = {
     "part/1": PartSpec,
     "ship/1": ShipSpec,
     "procedure/1": ProcedureSpec,
+    "scenario/1": ScenarioSpec,
 }
 
 
@@ -53,6 +60,7 @@ class ContentTree:
     parts: dict[str, PartSpec] = field(default_factory=dict)
     ships: dict[str, ShipSpec] = field(default_factory=dict)
     procedures: dict[str, ProcedureSpec] = field(default_factory=dict)
+    scenarios: dict[str, ScenarioSpec] = field(default_factory=dict)
     errors: list[ContentError] = field(default_factory=list)
 
     @property
@@ -84,30 +92,37 @@ def _load_file(tree: ContentTree, path: Path) -> None:
         tree.errors.append(ContentError(rel, f"unknown schema {schema!r}"))
         return
     try:
-        spec: PartSpec | ShipSpec | ProcedureSpec = _SCHEMAS[schema].model_validate(raw)
+        spec: _Spec = _SCHEMAS[schema].model_validate(raw)
     except ValidationError as exc:
         tree.errors.append(ContentError(rel, f"schema violation: {exc}"))
         return
 
     qualified = f"{PACK}:{spec.id}"
-    duplicate = False
+    shelf: (
+        dict[str, PartSpec]
+        | dict[str, ShipSpec]
+        | dict[str, ProcedureSpec]
+        | dict[str, ScenarioSpec]
+    )
     if isinstance(spec, PartSpec):
-        duplicate = qualified in tree.parts
-        tree.parts.setdefault(qualified, spec)
+        shelf = tree.parts
     elif isinstance(spec, ShipSpec):
-        duplicate = qualified in tree.ships
-        tree.ships.setdefault(qualified, spec)
+        shelf = tree.ships
+    elif isinstance(spec, ProcedureSpec):
+        shelf = tree.procedures
     else:
-        duplicate = qualified in tree.procedures
-        tree.procedures.setdefault(qualified, spec)
-    if duplicate:
+        shelf = tree.scenarios
+    if qualified in shelf:
         tree.errors.append(ContentError(rel, f"duplicate id {qualified!r}"))
+        return
+    shelf[qualified] = spec  # type: ignore[assignment]
 
 
 def _validate_refs(tree: ContentTree) -> None:
     for ship_id, ship in sorted(tree.ships.items()):
         _validate_ship_refs(tree, ship_id, ship)
     _validate_procedure_refs(tree)
+    _validate_scenario_refs(tree)
 
 
 def _validate_ship_refs(tree: ContentTree, ship_id: str, ship: ShipSpec) -> None:
@@ -211,6 +226,40 @@ def _accumulate_data_device(
         err(f"harness {device.id!r}: needs ends {{a, b}}")
     else:
         acc.segments[device.data_bus].append((device.ends["a"], device.ends["b"]))
+
+
+def _validate_scenario_refs(tree: ContentTree) -> None:
+    """Scenario refs (data-model.md, M2 subset): the ship must exist, and every
+    scheduled fault must name a device on it with a mode that device can enter.
+
+    Hazard modes are the authority for what a device can be told to do, so a
+    drill and the stress model cannot disagree about what is possible.
+    """
+    for scenario_id, scenario in sorted(tree.scenarios.items()):
+        where = f"scenario {scenario_id}"
+        ship = tree.ships.get(scenario.ship)
+        if ship is None:
+            tree.errors.append(ContentError(where, f"unknown ship {scenario.ship!r}"))
+            continue
+        behaviors = {
+            device.id: part.behavior
+            for device in ship.devices
+            if (part := tree.parts.get(device.part)) is not None
+        }
+        for fault in scenario.faults:
+            behavior = behaviors.get(fault.device)
+            if behavior is None:
+                tree.errors.append(
+                    ContentError(where, f"scheduled fault: unknown device {fault.device!r}")
+                )
+            elif fault.mode not in HAZARD_MODES.get(behavior, frozenset()):
+                tree.errors.append(
+                    ContentError(
+                        where,
+                        f"scheduled fault on {fault.device!r}: a {behavior} cannot enter "
+                        f"mode {fault.mode!r}",
+                    )
+                )
 
 
 def _validate_carriage(

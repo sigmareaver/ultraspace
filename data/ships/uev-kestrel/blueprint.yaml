@@ -185,6 +185,13 @@ devices:
     carried_by: rt.5
     scl: eps.load.avionics
 
+  # The SEU environment monitor (ata-42-data.md §2): panel-wired on purpose —
+  # the instrument that watches what breaks the terminals cannot be behind a
+  # terminal. Reads its own face in p/cm2s; the sim keeps flux in SI.
+  - id: mt.seu.flux
+    part: core:xducer-seu
+    scl: data.seu
+
 annunciators:
   - id: ann.bus.e.uv
     telemetry: mt.bus.e.v
@@ -205,3 +212,7 @@ annunciators:
     telemetry: bc.a          # BC health fraction (silent while BC dark)
     message: "DATA BUS A DEGRADED"
     low: 1.0                 # fires when any RT is declared FAILED
+  - id: ann.seu.hazard
+    telemetry: mt.seu.flux     # ambient particle flux, p/cm2s
+    message: "SEU HAZARD"
+    high: 100.0                # no arm gate: a high reading is never spurious

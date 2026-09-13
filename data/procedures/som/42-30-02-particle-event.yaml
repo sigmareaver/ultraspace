@@ -1,0 +1,66 @@
+schema: procedure/1
+id: som-42-30-02
+title: "Elevated Particle Environment — Avionics Protection"
+manual_ref: "SOM 42-30-02"
+ship: core:tb-1
+# A trade, not a repair: shed the non-essential terminal for the duration of
+# the event and accept a DEGRADED bus you chose. Step 1 is a gate — run
+# against a quiet environment the checklist must decline to do anything,
+# because shedding avionics for no reason is its own casualty.
+steps:
+  - step: 1
+    scl: "data.seu read"
+    expect_telemetry: mt.seu.flux
+    expect_min: 100.0
+    within_s: 1.0
+    on_pass_goto: 2
+    on_fail_goto: 8
+    note: "Is this actually an event? Above 100 p/cm2s, continue; below, there is nothing to do."
+  - step: 2
+    scl: "eps cb.a2 open"
+    note: "Shed RT 12: non-essential, and an unpowered board cannot latch up (42-00-00 §10)."
+  - step: 3
+    wait_s: 1.0
+    note: "Three consecutive misses before the controller declares it (42-00-00 §3); a dark terminal still reads OK for a third of a second."
+  - step: 4
+    scl: "data.db.a read"
+    expect_text: "12   NO RESPONSE"
+    note: "RT 12 dark and RT 5 answering — the degradation is the one you chose."
+  - step: 5
+    scl: "data.seu read"
+    expect_telemetry: mt.seu.flux
+    expect_max: 100.0
+    within_s: 600.0
+    on_pass_goto: 6
+    on_fail_goto: 9
+    note: "Hold the configuration until the flux falls back through the limit. Read the bus table while you wait: a terminal you kept can latch up under the lamp you already lit."
+  - step: 6
+    scl: "eps cb.a2 close"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 3.0
+    on_pass_goto: 7
+    on_fail_goto: 10
+    note: "Restore RT 12 and verify it answers. A terminal that does not is news (§2)."
+  - step: 7
+    scl: "data.db.a read"
+    expect_text: "12   OK"
+    on_pass_goto: 0
+    note: "Event ridden out with the bus whole. Log the shed and restore times."
+  - step: 8
+    scl: "data.seu read"
+    expect_telemetry: mt.seu.flux
+    expect_max: 100.0
+    within_s: 1.0
+    on_pass_goto: 0
+    note: "EXIT: the environment is quiet. Shedding avionics for no reason is its own casualty."
+  - step: 9
+    scl: "data.db.a read"
+    expect_text: "12   NO RESPONSE"
+    on_pass_goto: 0
+    note: "EXIT: the event has outlasted the hold. Stay shed and re-enter at step 5."
+  - step: 10
+    scl: "data.db.a read"
+    expect_text: "NO RESPONSE"
+    on_pass_goto: 0
+    note: "EXIT: RT 12 did not answer on restore — it failed before it was shed, or the bus is jammed by a terminal you kept. FIM 42-11."

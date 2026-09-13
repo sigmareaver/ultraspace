@@ -30,6 +30,9 @@ from ultraspace.ship.devices import (
     build_device,
     refused,
 )
+from ultraspace.ship.environment import CM2_PER_M2, Environment
+from ultraspace.ship.faults import apply_fault
+from ultraspace.ship.stress import Hazard, StressModel
 from ultraspace.ship.telemetry import STALE_AFTER_TICKS, TelemetryItem, TelemetryStore
 
 __all__ = ["Simulation"]
@@ -45,7 +48,7 @@ _ELECTRICAL = (
     "junction",
     "harness_seg",
 )
-_XDUCERS = ("xducer_v", "xducer_i", "xducer_soc")
+_XDUCERS = ("xducer_v", "xducer_i", "xducer_soc", "xducer_flux")
 DT_S = TICK_US / 1_000_000
 
 
@@ -59,6 +62,7 @@ class Simulation:
         self.rng = RngHub(master_seed)
         self.scheduler = Scheduler()
         self.telemetry = TelemetryStore()
+        self.environment = Environment()  # the world layer owns writes to this
         self.net = ElectricalNetwork([(n.id, n.c_f) for n in self.ship.nodes], DT_S)
         self.panel = AnnunciatorPanel(self.ship.annunciators)
 
@@ -104,11 +108,42 @@ class Simulation:
 
         self._xducer_parts = {spec.id: tree.parts[spec.part] for spec in self._xducers}
         self._carriers = self._bind_carriers()
+        self.stress = StressModel(self._build_hazards(tree), self.rng, self.environment, self.log)
 
         self.scheduler.register(Phase.NETWORKS, "electrical", self._electrical_task)
         self.scheduler.register(Phase.NETWORKS, "data", self._data_task)
+        self.scheduler.register(Phase.FAULTS, "stress", self.stress.tick)
         self.scheduler.register(Phase.INSTRUMENTS, "instruments", self._instruments_task)
         self.scheduler.register(Phase.ANNUNCIATORS, "annunciators", self._annunciators_task)
+
+    def _build_hazards(self, tree: ContentTree) -> list[Hazard]:
+        """Every declared (device, mode) susceptibility, in blueprint order.
+
+        A part with no `hazard` block contributes nothing and never fails on
+        its own — the correct default for hardware nobody has characterised.
+        """
+        hazards: list[Hazard] = []
+        for spec in self.ship.devices:
+            part = tree.parts[spec.part]
+            for mode in sorted(part.hazard):  # sorted: content order must not matter
+                hazards.append(Hazard.build(self.devices[spec.id], mode, part.hazard[mode]))
+        return hazards
+
+    def apply_fault(self, device_id: str, mode: str, by: str) -> bool:
+        """Put a device into a fault mode and record who did it.
+
+        The one door for authored casualties (scenario scripts) and for the
+        test-only injection console; the stress model uses the same
+        application call with its own, richer FDR record (stress.py).
+        """
+        changed = apply_fault(self.devices[device_id], mode)
+        self.log.append(
+            self.clock.tick_index,
+            device_id,
+            "fault-onset" if changed else "fault-reasserted",
+            {"mode": mode, "by": by},
+        )
+        return changed
 
     def _bind_carriers(self) -> dict[str, RemoteTerminal]:
         """Transducer id -> the RT that transports it; absent means panel-wired.
@@ -231,20 +266,27 @@ class Simulation:
         for spec in self._xducers:
             part = self._xducer_parts[spec.id]
             noise = self.rng.stream(f"sensor/{spec.id}/noise")
-            assert spec.measures is not None  # loader-validated
             if part.behavior == "xducer_v":
+                assert spec.measures is not None  # loader-validated
                 value = self.net.voltage_v(spec.measures) + noise.gauss(0.0, part.params["sigma_v"])
                 unit = "V"
             elif part.behavior == "xducer_i":
+                assert spec.measures is not None  # loader-validated
                 value = self.devices[spec.measures].last_i_a + noise.gauss(
                     0.0, part.params["sigma_a"]
                 )
                 unit = "A"
-            else:  # xducer_soc
+            elif part.behavior == "xducer_soc":
+                assert spec.measures is not None  # loader-validated
                 battery = self.devices[spec.measures]
                 assert isinstance(battery, Battery)
                 value = battery.soc + noise.gauss(0.0, part.params["sigma_frac"])
                 unit = "frac"
+            else:  # xducer_flux — the environment monitor, reading its own face
+                value = self.environment.flux_m2s / CM2_PER_M2 + noise.gauss(
+                    0.0, part.params["sigma_cm2s"]
+                )
+                unit = "p/cm2s"
             if self._delivered(spec.id):
                 self.telemetry.publish(
                     TelemetryItem(spec.id, value, unit, f"{spec.id} ({part.part_number})", tick)
@@ -336,7 +378,20 @@ class Simulation:
             lines.append(f"{bus_id}: {state} — {healthy}/{total} RTs healthy (bc {bc.id})")
         if not self.data_buses:
             lines.append("(no data buses fitted)")
+        lines.extend(self._seu_lines())
         return "\n".join(lines)
+
+    def _seu_lines(self) -> list[str]:
+        """The particle environment, as the monitor reports it (42-00-00 §9).
+
+        Read from telemetry like everything else: with no monitor fitted there
+        is no line, which is the honest answer — the ship does not know.
+        """
+        return [
+            self._read_one(spec.id).text
+            for spec in self._xducers
+            if self._xducer_parts[spec.id].behavior == "xducer_flux"
+        ]
 
     # -- conservation audit (invariant tests; not a player surface) -----------
 

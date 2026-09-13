@@ -5,6 +5,7 @@ from __future__ import annotations
 from ultraspace.content import ContentTree
 from ultraspace.interaction import run_procedure
 from ultraspace.ship import Simulation
+from ultraspace.world import ScenarioRun
 
 SCRIPT: list[tuple[str, str, frozenset[str]]] = [
     ("eps.bat.1.contactor", "close", frozenset({"confirm"})),
@@ -62,3 +63,48 @@ def test_different_seed_different_digest(tree: ContentTree) -> None:
     item_b = sim_b.telemetry.read("mt.bus.e.v")
     assert item_a is not None and item_b is not None
     assert item_a.value != item_b.value
+
+
+def run_event(tree: ContentTree, seed: int, shed: str | None = None) -> str:
+    """A full solar event, optionally with one terminal shed before it starts."""
+    spec = tree.scenarios["core:spe-transit"]
+    sim = Simulation(tree, spec.ship, master_seed=seed)
+    ScenarioRun(spec, sim)
+    for procedure_id in ("core:som-24-30-01", "core:som-42-30-01"):
+        assert run_procedure(sim, tree.procedures[procedure_id]).passed
+    if shed is not None:
+        sim.execute(shed, "open", set())
+    sim.step(6000)
+    return sim.log.digest()
+
+
+def test_a_scenario_replays_bit_identically(tree: ContentTree) -> None:
+    assert run_event(tree, 1553) == run_event(tree, 1553)
+
+
+def test_a_different_seed_is_a_different_event(tree: ContentTree) -> None:
+    """The stress model must actually consume the seed, not just exist."""
+    assert run_event(tree, 1553) != run_event(tree, 24)
+
+
+def onset_ticks(tree: ContentTree, seed: int, shed: str | None) -> dict[str, int]:
+    spec = tree.scenarios["core:spe-transit"]
+    sim = Simulation(tree, spec.ship, master_seed=seed)
+    ScenarioRun(spec, sim)
+    for procedure_id in ("core:som-24-30-01", "core:som-42-30-01"):
+        assert run_procedure(sim, tree.procedures[procedure_id]).passed
+    if shed is not None:
+        sim.execute(shed, "open", set())
+    sim.step(6000)
+    return {e.source: e.tick for e in sim.log if e.kind == "fault-onset"}
+
+
+def test_shedding_one_terminal_does_not_move_the_others_onset(tree: ContentTree) -> None:
+    """Stream isolation (ADR-0002): every hazard draws every tick, so a crew
+    action on RT 12 cannot shift when RT 5 latches. Without the unconditional
+    draw this test fails, and the whole replay story with it."""
+    kept = onset_ticks(tree, 1553, shed=None)
+    shed = onset_ticks(tree, 1553, shed="eps.cb.a2")
+    assert "rt.5" in kept, "the reference run must contain the casualty being compared"
+    assert shed.get("rt.5") == kept["rt.5"]
+    assert "rt.12" not in shed  # shed before the event: an unpowered board cannot latch

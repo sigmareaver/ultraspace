@@ -12,14 +12,19 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
+    "HAZARD_MODES",
     "REQUIRED_PARAMS",
     "REQUIRED_PORTS",
     "AnnunciatorSpec",
     "DataBusSpec",
     "DeviceSpec",
+    "EnvironmentPointSpec",
+    "HazardSpec",
     "NodeSpec",
     "PartSpec",
     "ProcedureSpec",
+    "ScenarioSpec",
+    "ScheduledFaultSpec",
     "ShipSpec",
     "StepSpec",
 ]
@@ -33,6 +38,7 @@ Behavior = Literal[
     "xducer_v",
     "xducer_i",
     "xducer_soc",
+    "xducer_flux",
     "bc",
     "rt",
     "junction",
@@ -49,6 +55,7 @@ REQUIRED_PARAMS: dict[str, frozenset[str]] = {
     "xducer_v": frozenset({"sigma_v"}),
     "xducer_i": frozenset({"sigma_a"}),
     "xducer_soc": frozenset({"sigma_frac"}),
+    "xducer_flux": frozenset({"sigma_cm2s"}),
     "bc": frozenset({"r_ohm", "min_v"}),
     "rt": frozenset({"r_ohm", "min_v"}),
     "junction": frozenset(),
@@ -65,6 +72,7 @@ REQUIRED_PORTS: dict[str, frozenset[str]] = {
     "xducer_v": frozenset(),
     "xducer_i": frozenset(),
     "xducer_soc": frozenset(),
+    "xducer_flux": frozenset(),
     "bc": frozenset({"pos", "neg"}),
     "rt": frozenset({"pos", "neg"}),
     "junction": frozenset(),
@@ -74,6 +82,34 @@ REQUIRED_PORTS: dict[str, frozenset[str]] = {
 
 class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+#: Fault modes a `hazard` block may declare, per behavior. A mode the device
+#: cannot actually enter would be a hazard that never fires — a content lie.
+HAZARD_MODES: dict[str, frozenset[str]] = {
+    "rt": frozenset({"stuck_dominant", "dead"}),
+    "junction": frozenset({"open", "short"}),
+    "harness_seg": frozenset({"open", "short"}),
+}
+
+#: Behaviors with a rail-voltage power gate, and so the only ones whose
+#: hazards may be declared `needs_rail` (failure-and-repair.md: `f_power`).
+RAIL_GATED = frozenset({"bc", "rt"})
+
+
+class HazardSpec(_Model):
+    """One fault mode's susceptibility (failure-and-repair.md, stress model v1).
+
+    `rate_per_h` is the mode's base rate at the quiet reference environment,
+    written per hour because that is the unit a reliability figure is quoted
+    in; the loader converts to SI. `radiation` is the exponent on the flux
+    ratio — 0.0 means the mode does not care about the particle environment,
+    which is the correct default for anything mechanical.
+    """
+
+    rate_per_h: float = Field(gt=0.0)
+    radiation: float = Field(default=0.0, ge=0.0)
+    needs_rail: bool = False  # the mode needs a live rail to happen at all
 
 
 class PartSpec(_Model):
@@ -88,6 +124,7 @@ class PartSpec(_Model):
     mass_kg: float
     behavior: Behavior
     params: dict[str, float]
+    hazard: dict[str, HazardSpec] = Field(default_factory=dict)  # fault mode -> rate
     docs: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -95,6 +132,18 @@ class PartSpec(_Model):
         missing = REQUIRED_PARAMS[self.behavior] - self.params.keys()
         if missing:
             raise ValueError(f"behavior {self.behavior!r} missing params: {sorted(missing)}")
+        allowed = HAZARD_MODES.get(self.behavior, frozenset())
+        for mode in sorted(self.hazard):
+            if mode not in allowed:
+                raise ValueError(
+                    f"behavior {self.behavior!r} cannot enter fault mode {mode!r} "
+                    f"(have {sorted(allowed)})"
+                )
+            if self.hazard[mode].needs_rail and self.behavior not in RAIL_GATED:
+                raise ValueError(
+                    f"hazard {mode!r}: 'needs_rail' requires a rail-gated behavior, "
+                    f"not {self.behavior!r}"
+                )
         return self
 
 
@@ -225,4 +274,60 @@ class ProcedureSpec(_Model):
                     target == step.step or (target != 0 and target not in numbers)
                 ):
                     raise ValueError(f"step {step.step}: invalid branch target {target}")
+        return self
+
+
+class EnvironmentPointSpec(_Model):
+    """One point on a scenario's environment timeline.
+
+    Authored in the conventional instrument unit (particles per cm² per
+    second); the loader converts to SI (ADR-0004 §4). Points are held in
+    order and interpolated linearly between — a solar particle event ramps
+    over minutes and decays over hours, and a step function would be a lie
+    the monitor could see.
+    """
+
+    at_s: float = Field(ge=0.0)
+    flux_cm2s: float = Field(ge=0.0)
+
+
+class ScheduledFaultSpec(_Model):
+    """A fault the scenario author places by hand, at a time.
+
+    Scripted faults enter the ship through the same call the stress model
+    uses, so a drill and an emergent casualty are indistinguishable to
+    everything downstream — including the player.
+    """
+
+    at_s: float = Field(ge=0.0)
+    device: str
+    mode: str
+
+
+class ScenarioSpec(_Model):
+    """`scenario/1` — an authored situation (data-model.md, M2 subset).
+
+    Implemented now: ship, seed, the environment timeline and scripted faults.
+    Wear deltas, crew, world state, goals and debrief criteria arrive with the
+    systems that give them meaning; unknown keys are build errors until then,
+    so a scenario written against the full schema fails loudly rather than
+    being quietly half-honoured.
+    """
+
+    schema_version: Literal["scenario/1"] = Field(alias="schema")
+    id: str
+    name: str
+    ship: str  # pack-qualified ship id
+    seed: int
+    environment: list[EnvironmentPointSpec] = Field(default_factory=list)
+    faults: list[ScheduledFaultSpec] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_timeline(self) -> ScenarioSpec:
+        times_s = [point.at_s for point in self.environment]
+        if times_s != sorted(times_s) or len(set(times_s)) != len(times_s):
+            raise ValueError("environment points must be in strictly increasing time order")
+        fault_times_s = [fault.at_s for fault in self.faults]
+        if fault_times_s != sorted(fault_times_s):
+            raise ValueError("scheduled faults must be in non-decreasing time order")
         return self
