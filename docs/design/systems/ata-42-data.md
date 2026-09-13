@@ -109,8 +109,8 @@ intra-tick bus physics at L1 (that is what L2 is for, later M2).
   FAILED; the first good reply clears both. Per-RT total error counter is
   monotone — it is the analyzer's evidence, and it never rewinds.
 - **Bus health.** HEALTHY while every RT answers; DEGRADED while ≥1 RT is
-  FAILED. The BC publishes health as a telemetry fraction (responding / total,
-  1.0 with zero RTs) every tick it is powered — and publishes nothing when
+  FAILED. The BC publishes health as a telemetry fraction (RTs *not declared
+  FAILED* / total, 1.0 with zero RTs) every tick it is powered — and publishes nothing when
   unpowered (instruments are devices; a dead instrument is silent, not lying).
 - **Causality (the data-network conservation law).** Replies are counted only
   for polls issued in the same tick; received ≤ transmitted, always. No message

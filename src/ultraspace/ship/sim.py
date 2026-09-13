@@ -284,7 +284,11 @@ class Simulation:
             total = len(bus.rt_addresses())
             healthy = round(bus.health_frac() * total)
             state = "DEGRADED" if bus.degraded else "HEALTHY"
-            lines.append(f"{bus_id}: {state} — {healthy}/{total} RTs responding (bc {bc.id})")
+            # "not declared FAILED", not "answered the last poll": the count
+            # tracks the BC's declaration (SOM 42-00-00 §3 — three consecutive
+            # misses), so a terminal that just started missing still counts
+            # here while the table already shows NO RESPONSE against it.
+            lines.append(f"{bus_id}: {state} — {healthy}/{total} RTs healthy (bc {bc.id})")
         if not self.data_buses:
             lines.append("(no data buses fitted)")
         return "\n".join(lines)
