@@ -18,7 +18,14 @@ Terminology: [glossary.md](glossary.md) — canonical vocabulary for docs, code,
 | [ui-presentation.md](design/ui-presentation.md) | TUI stations, rendering language, teletype mode, accessibility |
 | [scenarios-and-campaign.md](design/scenarios-and-campaign.md) | Scenario classes, campaign shape, fairness law |
 
-Per-system specs will live in `docs/design/systems/ata-XX-*.md` (template in ship-systems.md).
+### Per-system specs (`docs/design/systems/`)
+
+Template in ship-systems.md; one per ATA chapter, written before the code it governs.
+
+| Doc | Contents |
+|---|---|
+| [ata-24-eps.md](design/systems/ata-24-eps.md) | Electrical power: composition, solver tiers, instruments, annunciators, EPS failure modes (M1) |
+| [ata-42-data.md](design/systems/ata-42-data.md) | Data network: bus model, harness topology, located faults, DMM isolation, procedure set (M2) |
 
 ## Engineering (`docs/engineering/`)
 
@@ -37,12 +44,13 @@ Per-system specs will live in `docs/design/systems/ata-XX-*.md` (template in shi
 |---|---|
 | [workflow.md](process/workflow.md) | The feature cycle (Manual-Driven Development), DoD, playtest protocol, agent collaboration |
 | [roadmap.md](process/roadmap.md) | Milestones M0–M6 with acceptance vignettes and standing risks |
-| [playtests/](process/playtests/TEMPLATE.md) | Weekly playtest notes |
+| [playtests/](process/playtests/TEMPLATE.md) | Weekly playtest notes (template; dated notes alongside it) |
 
 ## Decisions (`docs/adr/`)
 
 [ADR index and template](adr/README.md) — 0001 language/UI, 0002 determinism,
-0003 content format, 0004 units, 0005 manual-driven development.
+0003 content format, 0004 units, 0005 manual-driven development, 0006 diegetic
+displays.
 
 ## Doc conventions
 
