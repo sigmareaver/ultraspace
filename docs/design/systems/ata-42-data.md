@@ -1,6 +1,6 @@
 # ATA 42 — Avionics & Data
 
-Status: Draft v0.3 (M2 increments 1–3 implementation contract) · Last updated: 2026-07-20 · Owner: design+engineering
+Status: Draft v0.4 (M2 increments 1–3 implementation contract) · Last updated: 2026-09-12 · Owner: design+engineering
 Related: [../ship-systems.md](../ship-systems.md), [../simulation-depth.md](../simulation-depth.md),
 [../failure-and-repair.md](../failure-and-repair.md), [ata-24-eps.md](ata-24-eps.md),
 [../../engineering/data-model.md](../../engineering/data-model.md)
@@ -177,8 +177,10 @@ completes the located-fault matrix:
 | `stuck_dominant` (latch-up) | RT | **protocol jam** | all RTs dark | clears on power removal of the babbler |
 | `open` | stub segment | none beyond it | one RT dark, powered | stub ohms OL at the coupler |
 | `short` | stub segment | **contained** (transformer coupling) | one RT dark, powered | stub ohms ~0 at the coupler |
-| `open` | trunk segment / coupler | **partition** | contiguous dark suffix from the BC | trunk ohms OL toward the dark zone |
-| `short` | trunk segment / coupler | **medium dead** | all RTs dark | cycling doesn't help; trunk ohms ~0 |
+| `open` | trunk segment | **partition** | contiguous dark suffix from the BC | trunk ohms OL toward the dark zone, from either end |
+| `short` | trunk segment | **medium dead** | all RTs dark | cycling doesn't help; trunk ohms ~0 at both ends of the run |
+| `open` | coupler | **partition** | contiguous dark suffix from the BC | OL *from the neighbouring coupler*; clean at its own probe point |
+| `short` | coupler | **medium dead** | all RTs dark | trunk ohms ~0 in **both** directions at its own probe point |
 
 The matrix is the CAN/1553 fault gospel made physical, with the standard's
 own containment culture: isolation transformers and transformer-coupled
@@ -197,11 +199,34 @@ stub taps read the coupling-winding continuity (~2 ohm) / OL / ~0.
 device on that bus is energized — de-energize the bus before probing
 (FIM 42-12 teaches it; refusal cites it).
 
+**What the meter cannot say (the coupler asymmetry).** The probed
+coupler's own state colors its trunk readings, and the two coupler faults
+are not symmetric — this is the discipline the harness tree is built on:
+
+- A **shorted coupler** is a short across the pair *at the probe point*:
+  every trunk direction from it reads ~0. A shorted run reads ~0 in one
+  direction only. "Both ways zero at one coupler" therefore convicts the
+  coupler, and nothing else does.
+- An **open coupler** is a broken feed-through *between* its two trunk
+  faces: each face still reads its own way out at 78 ohm, so the fault is
+  invisible from the coupler standing on it and shows as `OL` from the
+  neighbour. A coupler break is confirmed one coupler down.
+- One pair is **genuinely inseparable by ohms**: a short in a run versus a
+  short in the coupler at that run's far end both put ~0 at both ends of
+  the run. The meter has said all it can; the tree then works it by
+  replacement in cost order (run first, verify, then the coupler), which is
+  what a shop does. Isolation is allowed to bottom out in a swap — it is
+  not allowed to bottom out in a guess the sim silently scores.
+
 **Repair (field form; MAINT attaches cost later).** `repair` on a segment,
-coupler, or RT (module) clears its fault, FDR-logged, interlocked the
-same way — you do not splice a live bus. Intermittents, SEU rates, and
-stress scheduling (the solar event that *causes* the latch-up): the
-stress-model increment. BC fault modes: the BC/firmware increment.
+coupler, or RT (module) replaces the part — whatever its state — FDR-logged
+(with `fault_found` for review), interlocked the same way: you do not
+splice a live bus. It reports the same text either way, because refusing
+"nothing to repair" on a sound part would hand the player a verdict no
+instrument gave them (No God View). Replacing a good run is a wasted part;
+the bus table after re-energizing is the only verdict. Intermittents, SEU
+rates, and stress scheduling (the solar event that *causes* the latch-up):
+the stress-model increment. BC fault modes: the BC/firmware increment.
 
 ## 7. Procedures (manual set, staged)
 
@@ -213,13 +238,19 @@ stress-model increment. BC fault modes: the BC/firmware increment.
   terminal goes dark. Its boundaries now hand off to FIM 42-12.
 - **FIM 42-12** *Data Bus Wiring and Medium Faults* (executable,
   increment 3): the harness tree — one-dark with a good feed → stub ohms
-  at the coupler (stub / board / trunk upstream); all-dark after cycling →
-  de-energize → trunk ohms at the couplers (short: ~0; open: OL) →
-  `repair` the interval → re-energize → verify. Conformance runs the tree
-  against each injected harness fault and asserts the verdict path; the
-  runner's expectation vocabulary gains `expect_text` (substring match on
-  command output) so DMM readings are branchable like real checklist
-  readings.
+  at the coupler (stub / coupler / board / trunk upstream); all-dark after
+  cycling → de-energize → trunk ohms at the couplers (short: ~0; open: OL)
+  → `repair` the interval → re-energize → verify. Couplers are convicted
+  inside this tree, not deferred: the asymmetry above supplies the
+  discriminators (both-ways-zero at a probe point; `OL` seen from the
+  neighbour), and the one inseparable pair is worked by the replace-verify
+  ladder. What still exits to **FIM 42-13** is the controller itself —
+  harness clean end to end, bus still dark. Conformance runs the tree
+  against *every* injectable harness fault (a canary derives the expected
+  set from the blueprint, so new harness hardware without a verdict path
+  fails the build) and asserts each verdict path; the runner's expectation
+  vocabulary gains `expect_text` (substring match on command output) so DMM
+  readings are branchable like real checklist readings.
 - **QRH** data-bus loss, **MEL 42-01** (DB-A deferral): with the DB-B /
   fault-scheduling increments.
 
@@ -273,6 +304,9 @@ beyond `read` — schedule control is firmware, not panel.
 - **Conformance:** SOM 42-30-01 headless on both ships. FIM 42-11 per
   injected jam suspect; FIM 42-12 per injected harness fault — verdict
   path correct per fault (the executed step list is the tree's trace), and
-  a deliberately wrong FIM edit fails CI.
+  a deliberately wrong FIM edit fails CI. The fault set is *derived from
+  the ship*, not hand-listed: every coupler/run (open, short) and every RT
+  (dead) must have a path, so hardware can never be fitted without a
+  documented way to isolate it.
 - **Determinism:** no new RNG streams at increments 1–3; injection is
   journal-external, like SCL.

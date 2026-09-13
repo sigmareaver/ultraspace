@@ -7,13 +7,21 @@ ship: core:tb-1
 # an open breaker does not mean a dead rail), then let the DMM talk.
 # Branch steps key on the DMM output (expect_text); repair steps route to
 # the shared re-energize + verify tail; exit steps end at 0 (verdict END).
+#
+# Coupler faults read asymmetrically, and the tree is built on it: a shorted
+# coupler reads ~0 in BOTH trunk directions at its own probe point (a shorted
+# run reads ~0 in one), while an open coupler reads clean at itself and shows
+# its OL from the NEIGHBOURING coupler. The one pair ohms cannot separate —
+# a short in seg.j1-j2 versus a shorted J2, which put ~0 at both ends of the
+# same run — is worked the shop way: replace the run, verify, then the
+# coupler.
 steps:
   - step: 1
     scl: "data.db.a read"
     expect_telemetry: bc.a
     expect_max: 0.0
     within_s: 2.0
-    on_pass_goto: 22
+    on_pass_goto: 24
     on_fail_goto: 2
     note: "Split on the table: EVERY terminal dark → the trunk tree. One dark → the stub tree."
   - step: 2
@@ -25,8 +33,8 @@ steps:
   - step: 3
     scl: "data.db.a read"
     expect_text: "5    NO RESPONSE"
-    on_pass_goto: 14
-    on_fail_goto: 37
+    on_pass_goto: 16
+    on_fail_goto: 51
     note: "RT 5 → its coupler is J1. Neither → outside this checklist."
   # -- one-dark tree, RT 12 (coupler J2) --
   - step: 4
@@ -50,7 +58,7 @@ steps:
   - step: 9
     scl: "data.db.a.stub.j2-rt12 repair"
     expect_text: "replaced"
-    on_pass_goto: 32
+    on_pass_goto: 44
     note: "VERDICT: stub fault — the run is replaced."
   - step: 10
     scl: "data.db.a.j2 read"
@@ -67,125 +75,194 @@ steps:
   - step: 12
     scl: "data.db.a.seg.j1-j2 repair"
     expect_text: "replaced"
-    on_pass_goto: 32
+    on_pass_goto: 44
     note: "VERDICT: trunk break — the segment is replaced."
   - step: 13
+    scl: "data.db.a.j1 read"
+    expect_text: "seg.j1-j2 (toward j2): OL"
+    on_pass_goto: 14
+    on_fail_goto: 15
+    note: "Stand at J1 and look back: OL here but clean at J2 = J2's feed-through is open."
+  - step: 14
+    scl: "data.db.a.j2 repair"
+    expect_text: "replaced"
+    on_pass_goto: 44
+    note: "VERDICT: coupler J2 is open — the coupler is replaced."
+  - step: 15
     scl: "data.db.a.rt.12 repair"
     expect_text: "replaced"
-    on_pass_goto: 32
-    note: "VERDICT: stub and trunk good, terminal silent — the module is replaced."
+    on_pass_goto: 44
+    note: "VERDICT: stub, trunk, and coupler good, terminal silent — the module is replaced."
   # -- one-dark tree, RT 5 (coupler J1) --
-  - step: 14
+  # J1 hangs off seg.bc-j1: a fault in that run or in J1 itself darkens the
+  # whole bus, so one-dark-at-RT-5 leaves only the stub and the board.
+  - step: 16
     scl: "eps cb.e2 open"
     note: "De-energize DB-A: bus controller feed OPEN."
-  - step: 15
+  - step: 17
     scl: "eps cb.e3 open"
     note: "RT 5 feed OPEN."
-  - step: 16
+  - step: 18
     scl: "eps cb.a2 open"
     note: "RT 12 feed OPEN."
-  - step: 17
+  - step: 19
     wait_s: 1.0
     note: "Allow 1 s for the rails to bleed."
-  - step: 18
-    scl: "data.db.a.j1 read"
-    expect_text: "stub.j1-rt5 (toward rt.5): OL"
-    on_pass_goto: 19
-    on_fail_goto: 20
-    note: "Probe J1: OL on the stub tap = the stub is open."
-  - step: 19
-    scl: "data.db.a.stub.j1-rt5 repair"
-    expect_text: "replaced"
-    on_pass_goto: 32
-    note: "VERDICT: stub fault — the run is replaced."
   - step: 20
     scl: "data.db.a.j1 read"
-    expect_text: "stub.j1-rt5 (toward rt.5): 0.0 ohm"
-    on_pass_goto: 19
-    on_fail_goto: 21
-    note: "~0 ohm on the stub tap = the stub is shorted."
+    expect_text: "stub.j1-rt5 (toward rt.5): OL"
+    on_pass_goto: 21
+    on_fail_goto: 22
+    note: "Probe J1: OL on the stub tap = the stub is open."
   - step: 21
+    scl: "data.db.a.stub.j1-rt5 repair"
+    expect_text: "replaced"
+    on_pass_goto: 44
+    note: "VERDICT: stub fault — the run is replaced."
+  - step: 22
+    scl: "data.db.a.j1 read"
+    expect_text: "stub.j1-rt5 (toward rt.5): 0.0 ohm"
+    on_pass_goto: 21
+    on_fail_goto: 23
+    note: "~0 ohm on the stub tap = the stub is shorted."
+  - step: 23
     scl: "data.db.a.rt.5 repair"
     expect_text: "replaced"
-    on_pass_goto: 32
+    on_pass_goto: 44
     note: "VERDICT: stub good, terminal silent — the module is replaced."
   # -- trunk tree (every terminal dark) --
-  - step: 22
+  - step: 24
     scl: "eps cb.e2 open"
     note: "De-energize DB-A: bus controller feed OPEN."
-  - step: 23
+  - step: 25
     scl: "eps cb.e3 open"
     note: "RT 5 feed OPEN."
-  - step: 24
+  - step: 26
     scl: "eps cb.a2 open"
     note: "RT 12 feed OPEN."
-  - step: 25
+  - step: 27
     wait_s: 1.0
     note: "Allow 1 s for the rails to bleed."
-  - step: 26
-    scl: "data.db.a.j1 read"
-    expect_text: "seg.bc-j1 (toward bc.a): OL"
-    on_pass_goto: 27
-    on_fail_goto: 28
-    note: "OL toward the BC = the break is in seg.bc-j1."
-  - step: 27
-    scl: "data.db.a.seg.bc-j1 repair"
-    expect_text: "replaced"
-    on_pass_goto: 32
-    note: "VERDICT: seg.bc-j1 replaced."
   - step: 28
     scl: "data.db.a.j1 read"
-    expect_text: "seg.bc-j1 (toward bc.a): 0.0 ohm"
-    on_pass_goto: 27
-    on_fail_goto: 29
-    note: "~0 toward the BC = seg.bc-j1 is shorted."
+    expect_text: "seg.bc-j1 (toward bc.a): OL"
+    on_pass_goto: 29
+    on_fail_goto: 30
+    note: "OL toward the BC = the break is in seg.bc-j1."
   - step: 29
+    scl: "data.db.a.seg.bc-j1 repair"
+    expect_text: "replaced"
+    on_pass_goto: 44
+    note: "VERDICT: seg.bc-j1 replaced."
+  - step: 30
+    scl: "data.db.a.j1 read"
+    expect_text: "seg.bc-j1 (toward bc.a): 0.0 ohm"
+    on_pass_goto: 31
+    on_fail_goto: 33
+    note: "~0 toward the BC: the short is in seg.bc-j1 — or in J1 itself. Look the other way."
+  - step: 31
     scl: "data.db.a.j1 read"
     expect_text: "seg.j1-j2 (toward j2): 0.0 ohm"
-    on_pass_goto: 30
-    on_fail_goto: 31
-    note: "~0 toward J2 = seg.j1-j2 is shorted."
-  - step: 30
+    on_pass_goto: 32
+    on_fail_goto: 29
+    note: "~0 BOTH ways at one coupler = the short is across the pair there. One way only = the run."
+  - step: 32
+    scl: "data.db.a.j1 repair"
+    expect_text: "replaced"
+    on_pass_goto: 44
+    note: "VERDICT: coupler J1 is shorted — the coupler is replaced."
+  - step: 33
+    scl: "data.db.a.j1 read"
+    expect_text: "seg.j1-j2 (toward j2): 0.0 ohm"
+    on_pass_goto: 34
+    on_fail_goto: 49
+    note: "~0 toward J2, clean toward the BC: the short is in the J1-J2 interval."
+  - step: 34
     scl: "data.db.a.seg.j1-j2 repair"
     expect_text: "replaced"
-    on_pass_goto: 32
-    note: "VERDICT: seg.j1-j2 replaced."
-  - step: 31
-    scl: "data.db.a.j2 read"
-    expect_text: "coupler"
-    on_pass_goto: 0
-    note: "Trunk reads clean at J1: suspect a coupler or the BC (FIM 42-13, pending)."
-  # -- shared tail: re-energize and verify --
-  - step: 32
+    on_pass_goto: 35
+    note: "The run is the likely half of the interval — replace it and find out."
+  # -- interval ladder: verify the run swap, else take the coupler at its end --
+  - step: 35
     scl: "eps cb.a2 close"
     note: "RT 12 feed CLOSE."
-  - step: 33
+  - step: 36
     scl: "eps cb.e3 close"
     note: "RT 5 feed CLOSE."
-  - step: 34
+  - step: 37
     scl: "eps cb.e2 close"
     expect_telemetry: bc.a
     expect_min: 1.0
     within_s: 3.0
-    on_pass_goto: 35
-    on_fail_goto: 36
+    on_pass_goto: 0
+    on_fail_goto: 38
+    note: "VERDICT (if whole): seg.j1-j2 was the short. Still dead → the coupler at its end."
+  - step: 38
+    scl: "eps cb.e2 open"
+    note: "De-energize again: bus controller feed OPEN."
+  - step: 39
+    scl: "eps cb.e3 open"
+    note: "RT 5 feed OPEN."
+  - step: 40
+    scl: "eps cb.a2 open"
+    note: "RT 12 feed OPEN."
+  - step: 41
+    wait_s: 1.0
+    note: "Allow 1 s for the rails to bleed."
+  - step: 42
+    scl: "data.db.a.j2 read"
+    expect_text: "coupler"
+    on_pass_goto: 43
+    note: "Stand at J2 — the far end of the interval, and the last suspect in it."
+  - step: 43
+    scl: "data.db.a.j2 repair"
+    expect_text: "replaced"
+    on_pass_goto: 44
+    note: "VERDICT: coupler J2 — the remaining half of the interval."
+  # -- shared tail: re-energize and verify --
+  - step: 44
+    scl: "eps cb.a2 close"
+    note: "RT 12 feed CLOSE."
+  - step: 45
+    scl: "eps cb.e3 close"
+    note: "RT 5 feed CLOSE."
+  - step: 46
+    scl: "eps cb.e2 close"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 3.0
+    on_pass_goto: 47
+    on_fail_goto: 48
     note: "Bus controller feed CLOSE; verify the bus is whole."
-  - step: 35
+  - step: 47
     scl: "data.db.a read"
     expect_telemetry: bc.a
     expect_min: 1.0
     within_s: 2.0
     on_pass_goto: 0
     note: "Verdict recorded at the repair step. The error counters keep the episode's evidence."
-  - step: 36
+  - step: 48
     scl: "data.db.a read"
     expect_telemetry: bc.a
     expect_max: 0.5
     within_s: 2.0
     on_pass_goto: 0
     note: "Repair did not restore the bus: a second fault is present — restart from the table (FIM 42-11)."
-  - step: 37
+  # -- trunk clean at J1: the coupler you are standing on cannot show its own
+  #    break, so confirm it from the next one down --
+  - step: 49
+    scl: "data.db.a.j2 read"
+    expect_text: "seg.j1-j2 (toward j1): OL"
+    on_pass_goto: 50
+    on_fail_goto: 51
+    note: "J1 reads 78 ohm both ways. OL looking back at it from J2 = J1's feed-through is open."
+  - step: 50
+    scl: "data.db.a.j1 repair"
+    expect_text: "replaced"
+    on_pass_goto: 44
+    note: "VERDICT: coupler J1 is open — the coupler is replaced."
+  - step: 51
     scl: "data.db.a read"
     expect_text: "RT"
     on_pass_goto: 0
-    note: "Pattern outside this checklist (FIM 42-13, pending)."
+    note: "Cable and couplers read clean: the controller is the suspect (FIM 42-13, pending)."
