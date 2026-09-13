@@ -154,8 +154,8 @@ class DataBus:
         visited = {from_id}
         stack = [from_id]
         while stack:
-            current = stack.pop()
-            for seg_id, other in self._links.get(current, []):
+            here = stack.pop()
+            for seg_id, other in self._links.get(here, []):
                 if self._segments[seg_id].state != "ok" or other in visited:
                     continue
                 visited.add(other)
@@ -195,11 +195,7 @@ class DataBus:
         if junction.state == "short":
             return 0.0
         onward = (
-            [
-                (s, o)
-                for s, o in self._links[to_id]
-                if s != seg_id and o not in self._rt_ids
-            ]
+            [(s, o) for s, o in self._links[to_id] if s != seg_id and o not in self._rt_ids]
             if junction.state == "ok"
             else []
         )
@@ -249,4 +245,3 @@ class DataBus:
     @property
     def degraded(self) -> bool:
         return any(rt.failed for rt in self._rts.values())
-
