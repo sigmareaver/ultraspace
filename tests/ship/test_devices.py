@@ -67,3 +67,17 @@ def test_tripped_contactor_requires_reset(tb1: Simulation) -> None:
     assert not tb1.execute("eps.bus.a.tie", "close", {"confirm"}).ok
     assert tb1.execute("eps.bus.a.tie", "reset", set()).ok
     assert raw_device(tb1, "tie.a").state == "open"
+
+
+def test_a_refused_verb_says_what_the_device_does_answer(tb1: Simulation) -> None:
+    """Playtest 2026-09-12, friction 1: guessing `close` at a precharge unit
+    said only "not supported", so the player closed the tie instead and ate
+    the inrush trip. A refusal that teaches nothing is a manual failure.
+    """
+    refusal = tb1.execute("eps.bus.a.precharge", "close", set())
+    assert not refusal.ok
+    assert "start, stop, read" in refusal.text
+
+    breaker = tb1.execute("eps.cb.e1", "start", set())
+    assert not breaker.ok
+    assert "open, close, reset, read" in breaker.text

@@ -45,6 +45,11 @@ def refused(text: str) -> CommandResult:
 class ElectricalDevice:
     """Base: a two-terminal element attached to the electrical network."""
 
+    #: SCL verbs this device answers, in the order a refusal should offer
+    #: them. `read` is handled above the device (Simulation.execute) and is
+    #: implied everywhere, so it is not listed here.
+    verbs: tuple[str, ...] = ()
+
     def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
         self.id = spec.id
         self.spec = spec
@@ -63,7 +68,18 @@ class ElectricalDevice:
         return (0.0, 0.0)
 
     def execute(self, verb: str, flags: set[str]) -> CommandResult:
-        return refused(f"{self.id}: verb {verb!r} not supported")
+        return self.unsupported(verb)
+
+    def unsupported(self, verb: str) -> CommandResult:
+        """Refuse a verb and say what this device *does* answer.
+
+        A refusal that only says "not supported" teaches nothing, and the
+        manuals promise otherwise (AGENTS.md writing style: error messages
+        cite their sections). Guessing `close` at a precharge unit cost a
+        playtester an inrush trip — 2026-09-12 note, friction 1.
+        """
+        offered = ", ".join((*self.verbs, "read"))
+        return refused(f"{self.id}: verb {verb!r} not supported (try: {offered})")
 
     def observe(self) -> str:
         """Physical panel observation (position/state), not telemetry."""
@@ -115,6 +131,8 @@ class Battery(ElectricalDevice):
 class _Switch(ElectricalDevice):
     """Common contactor/breaker machinery: open/closed/tripped, overcurrent trip."""
 
+    verbs = ("open", "close", "reset")
+
     kind = "switch"
 
     def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
@@ -160,7 +178,7 @@ class _Switch(ElectricalDevice):
             return self._reset()
         if verb == "read":
             return CommandResult(True, self.observe())
-        return refused(f"{self.id}: verb {verb!r} not supported")
+        return self.unsupported(verb)
 
     def _open(self) -> CommandResult:
         if self.state == "tripped":
@@ -241,6 +259,8 @@ class Contactor(_Switch):
 class Precharge(ElectricalDevice):
     """Switched precharge resistor with auto-complete monitor."""
 
+    verbs = ("start", "stop")
+
     def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
         super().__init__(spec, part)
         self.state = "idle"  # idle | charging | complete
@@ -284,7 +304,7 @@ class Precharge(ElectricalDevice):
             return CommandResult(True, f"{self.id}: precharge IDLE")
         if verb == "read":
             return CommandResult(True, self.observe())
-        return refused(f"{self.id}: verb {verb!r} not supported")
+        return self.unsupported(verb)
 
 
 class Load(ElectricalDevice):
@@ -340,6 +360,8 @@ class RemoteTerminal(DataDevice):
     which also clears a latch-up — a new board has no parasitic path).
     """
 
+    verbs = ("repair",)
+
     kind = "rt"
 
     def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
@@ -366,7 +388,7 @@ class RemoteTerminal(DataDevice):
 
     def execute(self, verb: str, flags: set[str]) -> CommandResult:
         if verb != "repair":
-            return refused(f"{self.id}: verb {verb!r} not supported")
+            return self.unsupported(verb)
         return self._repair()
 
     def _repair(self) -> CommandResult:
@@ -418,7 +440,7 @@ class BusController(DataDevice):
         return f"{self.id}: ON AIR — {self.bus.id} {state}"
 
     def execute(self, verb: str, flags: set[str]) -> CommandResult:
-        return refused(f"{self.id}: verb {verb!r} not supported")
+        return self.unsupported(verb)  # schedule control is firmware, not panel
 
     def read_result(self) -> CommandResult:
         return CommandResult(True, self.readout())
@@ -456,6 +478,8 @@ class HarnessElement(ElectricalDevice):
     a fault was actually there goes to the FDR, for review afterwards.
     """
 
+    verbs = ("repair",)
+
     def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
         # Attribute assignments must precede super().__init__: the base
         # assigns self.state, which delegates to the (not yet bound) bus.
@@ -490,7 +514,7 @@ class HarnessElement(ElectricalDevice):
 
     def execute(self, verb: str, flags: set[str]) -> CommandResult:
         if verb != "repair":
-            return refused(f"{self.id}: verb {verb!r} not supported")
+            return self.unsupported(verb)
         assert self._bus is not None and self._de_energized is not None
         assert self._log is not None and self._clock is not None
         if not self._de_energized():
