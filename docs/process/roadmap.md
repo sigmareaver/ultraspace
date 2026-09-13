@@ -84,10 +84,26 @@ its caution quiet, which makes SOM 42-00-00 §6's promise true in the sim.
 FIM 42-14 (executable) routes a frozen indication: panel-wired instruments
 first, so a dead bus is never mistaken for a data fault. Note:
 [playtests/2026-09-12-m2-sensor-transport.md](playtests/2026-09-12-m2-sensor-transport.md).
+Progress 2026-09-13: stress model v1 ✅ — faults stop being authored. Parts
+declare hazards (`rate_per_h`, `radiation`, `needs_rail`), the ship carries a
+particle environment, and each (device, mode) pair draws its own stream once
+per tick *unconditionally*, so a crew action can never shift another device's
+future. Scenarios become content (`scenario/1`: a flux timeline and any
+scripted faults) played by a new `world` layer, and `testing.inject_fault`
+now delegates to the same ship-layer door — an emergent casualty and an
+authored one are indistinguishable except in the FDR. The SEU monitor
+(`data.seu read`) and `SEU HAZARD` give the crew minutes of warning; SOM
+42-30-02 (executable) trades a shed terminal for exposure, and the essential
+terminal that cannot be shed latches up anyway on a severe event — under an
+already-lit lamp. Note:
+[playtests/2026-09-13-m2-particle-event.md](playtests/2026-09-13-m2-particle-event.md).
 
 - Data network (DB-A/B, RT/BC, message schedules, bus analyzer tool); thermal loop v1
   (enough to make electronics care about heat); L2 forensic tier for PDU boards
-  (netlists, test points, DMM probing); stress model + fault scheduling; intermittents.
+  (netlists, test points, DMM probing); intermittents and condition-triggered
+  hazards (the stress model's v2 factors: thermal, duty, wear).
+- Bus table: mark a terminal *shed by command* so a planned shed does not bury
+  the error counters FIM 42-11 reads (playtest finding, 2026-09-13).
 - FIM Ch 24/42 with executable isolation tasks; QRH v1; MEL v1 (defer DB-A!).
 - MAINT station (records, spares, swap verbs), LOG station (FDR review v1).
 - Device power dependencies: annunciator panel as a powered device (a dark panel at

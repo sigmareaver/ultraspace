@@ -25,7 +25,7 @@ Always `uv run ...` — never bare `python`/`pip`. Runtime deps are currently **
 ```
 docs/            specs: design/ engineering/ process/ adr/  — index at docs/README.md
 data/            game content (parts, ships, manuals, procedures, scenarios) [M1+]
-src/ultraspace/  kernel/ → networks/ → ship/ → world/ → interaction/ → presentation/
+src/ultraspace/  kernel/ → content/ → networks/ → ship/ → world/ → interaction/ → presentation/
 tests/           mirrors src/; plus invariants/ determinism/ casualties/ conformance/
 tools/           repo scripts (validators, generators, lints)
 ```
@@ -153,6 +153,21 @@ checklist lives there; walk it before declaring anything finished.
   FIM 42-14 (*Instrument Reading Frozen*) is executable with a case per entry,
   including the two that route out of ATA 42 entirely. Spec v0.5; playtest note
   2026-09-12 (sensor transport).
+- **Increment 5 landed 2026-09-13**: stress model v1 — faults become emergent.
+  Parts declare `hazard:` blocks per fault mode (`rate_per_h`, `radiation`,
+  `needs_rail`); `ship/environment.py` holds the particle flux; `ship/stress.py`
+  runs Phase.FAULTS, drawing `fault/<device>/<mode>` **once per tick,
+  unconditionally** (a crew action must not shift another device's future);
+  `ship/faults.py` is the single application door that the stress model,
+  scenarios and `testing.inject_fault` all go through — the FDR issuer is the
+  only thing that differs. New `world/` layer: `scenario/1` content (flux
+  timeline + scripted faults) played in Phase.WORLD with a documented one-tick
+  lag. `data/scenarios/spe-minor.yaml` and `spe-transit.yaml`; SEU monitor
+  (`data.seu read`, p/cm2s) + `SEU HAZARD`; SOM 42-00-00 §9–§10 and SOM
+  42-30-02 (executable, four conformance paths incl. both failure exits).
+  `tools/check_units.py` grew flux/rate/dose keywords and segment-aware
+  matching. Spec: ata-42-data.md v0.6, failure-and-repair.md v0.3; playtest
+  note 2026-09-13 (particle event).
 - Next increments: stress/fault scheduling + intermittents, DB-B failover,
   FIM 42-13 (the controller — the only harness-tree exit left), QRH v1 (caution
   priority — playtest friction), MEL, thermal loop v1.
