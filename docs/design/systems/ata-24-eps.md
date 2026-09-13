@@ -69,7 +69,11 @@ Transducers are devices scheduled in the INSTRUMENTS phase: they sample network 
 apply per-device gaussian noise from stream `sensor/<device>/noise` (σ from part
 params) and publish `TelemetryItem(value, unit, source, tick)`. Displays/SCL `read`
 surface *telemetry only*, with provenance and age. Data-bus transport is stubbed at M1
-(direct wiring fiction, honest per TB-1's simplicity); DB-A/RT chain lands at M2.
+(direct wiring fiction, honest per TB-1's simplicity); the DB-A/RT chain lands at M2
+increment 4 (ata-42-data.md §4) for **remote** transducers only — a transducer with
+`carried_by` publishes solely in ticks where its carrier RT answered. Bus meters and
+battery instruments stay panel-wired, because SOM 24-30-01 step 1 has to read BUS E
+with the ship cold and dark, before any data bus exists to carry it.
 
 Breaker/contactor positions are readable as *physical observation* (panel inspection),
 not telemetry — matching real panels.
@@ -104,6 +108,8 @@ eps.bus.a.precharge      start | stop | read     [interlock: tie must be OPEN to
 eps.cb.<panel-id>        open | close | read      (breakers; close --confirm if tripped)
 eps.bus.e / eps.bus.a    read                     (telemetry: V, I where instrumented)
 eps.bat.1                read                     (V, SOC estimate via transducer)
+eps.load.cabin           read                     (remote I; carried by RT 12 — may be stale)
+eps.load.avionics        read                     (remote I; carried by RT 5 — may be stale)
 ```
 
 ## 9. M1 content-schema subset (deviation note vs data-model.md)

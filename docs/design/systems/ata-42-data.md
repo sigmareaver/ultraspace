@@ -1,6 +1,6 @@
 # ATA 42 — Avionics & Data
 
-Status: Draft v0.4 (M2 increments 1–3 implementation contract) · Last updated: 2026-09-12 · Owner: design+engineering
+Status: Draft v0.5 (M2 increments 1–4 implementation contract) · Last updated: 2026-09-12 · Owner: design+engineering
 Related: [../ship-systems.md](../ship-systems.md), [../simulation-depth.md](../simulation-depth.md),
 [../failure-and-repair.md](../failure-and-repair.md), [ata-24-eps.md](ata-24-eps.md),
 [../../engineering/data-model.md](../../engineering/data-model.md)
@@ -17,9 +17,11 @@ fiction is replaced, in stages, by a transport that can fail, lag, or lie.
 M2 ships in increments. **Increment 1** (bus, BC/RT, health accounting, analyzer
 v1, checkout manual) shipped 2026-07-18; **increment 2** (fault model v1:
 stuck-dominant, power-cycle repair, executable FIM 42-11, runner branching)
-shipped 2026-07-19. This revision specifies **increment 3** — the harness:
-topology, located medium faults, and measurement-driven isolation — and marks
-the rest **(later M2)**. Fidelity tier: L1 (the bus is quasi-static within a
+shipped 2026-07-19; **increment 3** (the harness: topology, located medium
+faults, measurement-driven isolation) shipped 2026-09-12. This revision
+specifies **increment 4** — sensor transport: remote transducers ride their RT,
+telemetry ages, and a stale source is a silent source — and marks the rest
+**(later M2)**. Fidelity tier: L1 (the bus is quasi-static within a
 tick).
 
 **Review of increments 1–2 (why increment 3 exists).** The ledger knows counts
@@ -57,7 +59,7 @@ Later M2: DB-B failover, sensor-transport migration (displays show stale values
 when their RT dies — the U4 step-3 symptom), FIM 42-11, MEL DB-A deferral,
 firmware behaviors (modes, watchdogs, reload).
 
-## 2. Composition (TB-1; increments 1–3)
+## 2. Composition (TB-1; increments 1–4)
 
 | Device | Part | Behavior |
 |---|---|---|
@@ -89,6 +91,21 @@ TB-1 topology (the fixture's "1 data bus", testing.md §fixtures):
   "a resistance equal to the selected cable nominal characteristic
   impedance"); stubs are **transformer-coupled** — the standard's own
   fault-containment culture, see §6.
+
+**Remote transducers (increment 4).** Two current transducers are sited at
+their loads rather than at the panel, and reach the store through the RT in
+their bay (§4):
+
+| Transducer | Measures | Carrier | Bus behind it |
+|---|---|---|---|
+| `mt.load.cabin.i` | `load.cabin` | `rt.12` | DB-A via CB A2 (BUS A) |
+| `mt.load.avionics.i` | `load.avionics` | `rt.5` | DB-A via CB E3 (BUS E) |
+
+Two carriers on *different* power feeds is the point: the pair is the U4
+step-3 instrument — one reading freezes with a climbing age tag while its
+twin stays live and both loads keep drawing exactly what they drew before.
+The bus meters (`mt.bus.e.v`, `mt.bus.a.v`) and the battery instruments stay
+panel-wired, because cold start has to read them with the data bus dark.
 
 Kestrel: same parts on the same scheme. VMC-1/2 and DB-B: later M2, with
 failover.
@@ -146,21 +163,65 @@ degraded termination (reflections → intermittents, needs the stress model).
 M1 transducers publish directly to the telemetry store (rig-powered fiction,
 ata-24-eps.md §4). Migration is staged so every step stays honest:
 
-1. **Increment 1 (this spec):** transport untouched. The BC is itself an
-   instrument; its health telemetry and bus table are the new surfaces.
-2. **Sensor transport (later M2):** transducer values ride their RT; a dark RT
-   sends its sensors stale (`?` per the color contract) — the U4 step-3
-   symptom, displays wrong while the cabin is fine.
+1. **Increment 1:** transport untouched. The BC is itself an instrument; its
+   health telemetry and bus table are the new surfaces.
+2. **Increment 4 (this revision):** sensor transport — a transducer's samples
+   reach the store only when its carrier RT answered; a dark RT sends its
+   sensors stale (`?` per the color contract). This is the U4 step-3 symptom:
+   displays wrong while the cabin is fine.
 3. **Consumption (later M2):** displays/annunciators read BC-collected data;
    the scan loop is unchanged, only provenance deepens.
 
-## 5. Annunciators (increment 1)
+**What rides the bus, and what does not.** A transducer may name a carrier RT
+(`carried_by`); its samples then reach the telemetry store only in ticks where
+that RT answered the BC's poll. A transducer with no carrier is **panel-wired**
+— copper from the sensor to the gauge, no network in between.
+
+The split is a requirement, not a convenience. SOM 24-30-01 step 1 reads BUS E
+voltage with the whole ship cold and dark: a meter that needed the data bus
+could not be read until the data bus is powered, and the procedure that brings
+the ship up would have no instruments to bring it up with. Primary and standby
+indications are therefore panel-wired by design — the M1 breadboard/standby
+fiction, now with a reason — and **remote** transducers, sited where copper
+back to the panel would be absurd, ride their local RT. TB-1 and Kestrel each
+fit two, on different buses (§2), so one DB-A casualty freezes one reading
+while its twin stays live and the loads themselves are untouched.
+
+**Sensing is not transport.** The sensor samples every tick regardless of its
+carrier: the noise stream is drawn unconditionally, so a bus fault never shifts
+the RNG sequence and replay stays independent of bus state (Iron Law:
+determinism). What a dead RT costs is *delivery*. The store keeps the last item
+it received, and that item ages.
+
+**Staleness.** Every `TelemetryItem` carries the tick it was sampled at. An item
+is **stale** when `tick_now - item.tick > STALE_AFTER_TICKS` (10 ticks = 1.0 s,
+one shared constant for sim and presentation). Stale is not missing: the value
+is still readable and still the last honest reading, and the display says so
+rather than hiding it — age tag plus `?`, dimmed (ui-presentation.md, ADR-0006).
+Teletype has no dim, so the SCL `read` line carries the word: `? STALE` after
+the age. That makes it a *branchable reading*, like a DMM ohms value — which is
+what lets FIM 42-14 (§7) be executable at all.
+Nothing inside the sim reads telemetry to decide physics; the store stays
+strictly downstream of the world (architecture.md).
+
+## 5. Annunciators (increments 1 & 4)
 
 `DATA BUS A DEGRADED` — config threshold monitor on the BC health fraction:
 `low: 1.0` with `arm_above: 0.99`. Quiet while cold & dark; arms once the bus
 first comes fully up; fires when any RT stops answering; clears when it
-recovers. BC unpowered → no telemetry → monitor quiet (no sensor, no alarm —
-the honest dark-panel lesson from the M1 playtests).
+recovers.
+
+**Stale sources are silent sources (increment 4).** A monitor evaluates only a
+*fresh* item. When its source goes stale the monitor drops to quiet and any
+latched caution clears — the same rule as "no item at all", for the same
+reason: a caution lamp asserts a present-tense fact about the ship, and a
+three-second-old number is not one. This is what finally makes §5's original
+promise true in the sim as well as the prose: BC unpowered → nothing published
+→ the last health value ages out → monitor quiet (no sensor, no alarm — the
+honest dark-panel lesson from the M1 playtests, and SOM 42-00-00 §6's "silence
+is not health"). The bus table and the age tag are where the player sees the
+loss; the dark annunciator is a report about the *instrument*, never a
+clearance for the load.
 
 ## 6. Failure modes
 
@@ -181,6 +242,7 @@ completes the located-fault matrix:
 | `short` | trunk segment | **medium dead** | all RTs dark | cycling doesn't help; trunk ohms ~0 at both ends of the run |
 | `open` | coupler | **partition** | contiguous dark suffix from the BC | OL *from the neighbouring coupler*; clean at its own probe point |
 | `short` | coupler | **medium dead** | all RTs dark | trunk ohms ~0 in **both** directions at its own probe point |
+| *any of the above* | a carrier RT | **its sensors go stale** | reading frozen, age climbing, `?` | the bus table names the dark RT; the measured load is unaffected |
 
 The matrix is the CAN/1553 fault gospel made physical, with the standard's
 own containment culture: isolation transformers and transformer-coupled
@@ -189,6 +251,15 @@ failures that still can are a babbling transmitter (protocol, clears with
 power) and a trunk short (medium, located, ohmable). A shorted stub is the
 contained case; had the ship been wired with direct-coupled stubs it would
 kill the bus — our ships are built to the standard's preferred culture.
+
+The last row is transport, not a new fault: every way of darkening an RT
+(§6 rows above) takes its carried sensors off the air by the same mechanism,
+and none of them touches the quantity being measured. A frozen ammeter with a
+live bus behind it is a *display* casualty — the player's first read of it
+will be "the cabin load failed", and the instrument's own evidence (age tag,
+bus table, the load's breaker still closed and its bus still at voltage) is
+what corrects them. That correction is the U4 lesson and it is the reason the
+stale value is shown rather than blanked.
 
 **Measurement (the DMM).** Isolation is measurement-driven. A junction
 `read` is a DMM ohms check at that coupler, per direction: equivalent
@@ -231,7 +302,8 @@ the stress-model increment. BC fault modes: the BC/firmware increment.
 ## 7. Procedures (manual set, staged)
 
 - **SOM 42-00-00** Theory of data operations (topology, termination,
-  coupling culture, and DMM practice added at increment 3).
+  coupling culture, and DMM practice added at increment 3; sensor transport
+  and the reading of age added at increment 4).
 - **SOM 42-30-01** *Data Bus Checkout* (executable; conformance).
 - **FIM 42-11** *Data Bus Degraded* (executable): the U4 jam tree —
   all-dark → sequential power-cycling → the bus recovers when the babbling
@@ -251,6 +323,18 @@ the stress-model increment. BC fault modes: the BC/firmware increment.
   fails the build) and asserts each verdict path; the runner's expectation
   vocabulary gains `expect_text` (substring match on command output) so DMM
   readings are branchable like real checklist readings.
+- **FIM 42-14** *Instrument Reading Frozen* (executable, increment 4): the
+  second entry symptom, and the only one that can arrive with **no**
+  annunciator at all — a BC power loss takes every carried instrument stale
+  while `DATA BUS A DEGRADED` stays dark (§5). Its own entry is therefore a
+  gauge, not a lamp, and its first move is the discrimination that keeps the
+  crew off the wrong system: prove the *measured* system with the panel-wired
+  instruments (bus voltage, breaker position) before blaming the data network.
+  Routes to CB E2 (controller dark), to FIM 42-11's split (a carrier dark), to
+  ATA 24 (the load really did change), or to the transducer itself (bus
+  healthy, reading still frozen). It owns no repair verb — it is a routing
+  section, which is why it is numbered outside the 42-11/-12/-13 isolation
+  block.
 - **QRH** data-bus loss, **MEL 42-01** (DB-A deferral): with the DB-B /
   fault-scheduling increments.
 
@@ -265,7 +349,7 @@ RTs have no operator address at increment 1: they are boxes, reached through
 their power breakers (and, at L2, their test points). The BC has no verbs
 beyond `read` — schedule control is firmware, not panel.
 
-## 9. Content-schema notes (increments 1–3)
+## 9. Content-schema notes (increments 1–4)
 
 - Part behaviors: `bc`, `rt` (params `r_ohm` input load, `min_v` power
   gate; ports `pos`/`neg); `junction` (bus coupler; no electrical load) and
@@ -275,10 +359,14 @@ beyond `read` — schedule control is firmware, not panel.
   `data_bus: db.a`. RTs take their address from instance params
   (`rt_address`, 0–31; carried as float until the schema grows integer
   params — noted deviation, forward-compatible).
+- Transducers may declare `carried_by: <rt device id>` (increment 4). Absent
+  = panel-wired, the M1 form and still the default. Present = the sample is
+  published only in ticks where that RT answered its poll.
 - Validation: exactly one BC per bus; RT addresses unique per bus; harness
   `ends` resolve to bus members; every bus member is reachable from the BC
   through declared segments at load time (a dangling harness is a build
-  error, never a tick-time surprise). All load-time errors.
+  error, never a tick-time surprise); `carried_by` is transducer-only and must
+  name an `rt` device on the same ship. All load-time errors.
 - WDM: the 24 feeder trees list the data-hardware breakers; a generated
   WDM 42 harness sheet (trunk/couplers/stubs/terminator, in BC-outward
   order) is the isolation map FIM 42-12 references. Harness and couplers
@@ -300,13 +388,25 @@ beyond `read` — schedule control is firmware, not panel.
   power loss → one dark; dead module → one dark, powered; stuck-dominant →
   all dark, clears on the cycle; stub open/short → one dark with telling
   stub ohms; trunk open → *contiguous* dark suffix; trunk short → all dark
-  that no power cycle fixes, trunk ohms ~0.
-- **Conformance:** SOM 42-30-01 headless on both ships. FIM 42-11 per
-  injected jam suspect; FIM 42-12 per injected harness fault — verdict
+  that no power cycle fixes, trunk ohms ~0. Increment 4: an RT casualty
+  freezes its carried reading (age climbs, `?`) while the twin on the other
+  feed stays live and the measured load's own instruments are unmoved — the
+  U4 step-3 vignette, observed through the panel and SCL only.
+- **Conformance:** SOM 42-30-01 headless on both ships. FIM 42-14 per entry
+  case — carrier dark, controller dark, and the load that really did change
+  (which must leave the tree at step 1 rather than blame the network).
+  FIM 42-11 per injected jam suspect; FIM 42-12 per injected harness fault — verdict
   path correct per fault (the executed step list is the tree's trace), and
   a deliberately wrong FIM edit fails CI. The fault set is *derived from
   the ship*, not hand-listed: every coupler/run (open, short) and every RT
   (dead) must have a path, so hardware can never be fitted without a
   documented way to isolate it.
-- **Determinism:** no new RNG streams at increments 1–3; injection is
-  journal-external, like SCL.
+  Increment 4: a carried transducer publishes only while its RT answers; a
+  panel-wired one publishes unconditionally; `TelemetryStore.fresh` at the
+  staleness horizon; a monitor with a stale source goes quiet and clears its
+  latch.
+- **Determinism:** no new RNG streams at increments 1–4; injection is
+  journal-external, like SCL. Increment 4 draws each sensor's noise stream
+  **every tick regardless of transport**, so a bus casualty cannot shift the
+  sequence — asserted by replaying an identical script with and without a
+  carrier fault and comparing the *panel-wired* instruments tick for tick.
