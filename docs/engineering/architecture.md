@@ -92,9 +92,10 @@ src/ultraspace/
   kernel/        # M0 ✅  clock, scheduler, rng, events
   content/       # M1     schemas, loader, validation, generators
   networks/      # M1–M2  electrical, thermal, data, fluid, structure
-  ship/          # M1     blueprint, devices, instruments, annunciators
+  ship/          # M1     blueprint, devices, instruments, annunciators,
+                 #        environment, stress model, fault application
   interaction/   # M1     scl, procedures
-  world/         # M3     comms, traffic, stations, crew, scenarios
+  world/         # M2     scenarios (M3: comms, traffic, stations, crew)
   presentation/  # M1     tui/, teletype/
   testing/       # M1     state-inspection API for tests, fault injection console
 ```

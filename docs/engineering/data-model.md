@@ -78,6 +78,13 @@ Ship + wear/config deltas, environment timeline, fault schedule (device, mode, t
 condition), crew roster/state, world state (traffic density, station config, broadcast
 letter), goals (telemetry predicates), debrief criteria, master seed.
 
+*M2 subset (increment 5, deviation note):* `ship`, `seed`, `environment` (timeline
+points, linearly interpolated between them) and `faults` (at a time, by device and
+mode) are implemented; the rest waits for the systems that give it meaning — crew and
+world state at M3, wear deltas with component history, goals/debrief with the debrief
+screen. Unknown keys are build errors, so a scenario written against the full schema
+today fails loudly rather than being half-honoured.
+
 ### Manual page (frontmatter)
 `manual: som`, `ata: 24`, `section: 24-30-01`, `title`, `effectivity: [part_numbers]`,
 `requires: [generated:breaker-table-bus-a]` — generated blocks are referenced by ID and

@@ -1,6 +1,6 @@
 # ATA 42 — Avionics & Data
 
-Status: Draft v0.5 (M2 increments 1–4 implementation contract) · Last updated: 2026-09-12 · Owner: design+engineering
+Status: Draft v0.6 (M2 increments 1–5 implementation contract) · Last updated: 2026-09-13 · Owner: design+engineering
 Related: [../ship-systems.md](../ship-systems.md), [../simulation-depth.md](../simulation-depth.md),
 [../failure-and-repair.md](../failure-and-repair.md), [ata-24-eps.md](ata-24-eps.md),
 [../../engineering/data-model.md](../../engineering/data-model.md)
@@ -59,7 +59,7 @@ Later M2: DB-B failover, sensor-transport migration (displays show stale values
 when their RT dies — the U4 step-3 symptom), FIM 42-11, MEL DB-A deferral,
 firmware behaviors (modes, watchdogs, reload).
 
-## 2. Composition (TB-1; increments 1–4)
+## 2. Composition (TB-1; increments 1–5)
 
 | Device | Part | Behavior |
 |---|---|---|
@@ -106,6 +106,13 @@ step-3 instrument — one reading freezes with a climbing age tag while its
 twin stays live and both loads keep drawing exactly what they drew before.
 The bus meters (`mt.bus.e.v`, `mt.bus.a.v`) and the battery instruments stay
 panel-wired, because cold start has to read them with the data bus dark.
+
+**The environment monitor (increment 5).** `mt.seu.flux` — an SEU
+environment monitor (`core:xducer-seu`) in the avionics bay, measuring ambient
+particle flux, **panel-wired**. It watches the thing that breaks the boards,
+so it must survive the boards breaking; like every M1/M2 transducer it is
+rig-powered (instrument power dependencies are their own deferred increment,
+ata-24-eps.md §4). Its caution is `SEU HAZARD` (§5).
 
 Kestrel: same parts on the same scheme. VMC-1/2 and DB-B: later M2, with
 failover.
@@ -211,6 +218,13 @@ strictly downstream of the world (architecture.md).
 first comes fully up; fires when any RT stops answering; clears when it
 recovers.
 
+`SEU HAZARD` — threshold monitor on the flux reading, `high: 100 p/cm²·s`,
+no arm gate (the hazard is real from the moment it is measured, and there is
+no cold-and-dark state in which a high flux reading is spurious). It fires
+before any casualty and says nothing about the ship — it is a statement about
+the *outside*, which makes it the first annunciator on this vessel that is not
+about a system at all.
+
 **Stale sources are silent sources (increment 4).** A monitor evaluates only a
 *fresh* item. When its source goes stale the monitor drops to quiet and any
 latched caution clears — the same rule as "no item at all", for the same
@@ -289,15 +303,33 @@ are not symmetric — this is the discipline the harness tree is built on:
   what a shop does. Isolation is allowed to bottom out in a swap — it is
   not allowed to bottom out in a guess the sim silently scores.
 
+**Where the latch-up comes from (increment 5).** `stuck_dominant` is no
+longer only an injected fault: it is the RT's hazard mode, and its rate rides
+the ambient particle flux (failure-and-repair.md, stress model v1). The U4
+story's first act — the solar event — is now in the sim, and the chapter gains
+its own instrument for it: an **SEU environment monitor** in the avionics bay
+(`core:xducer-seu`, P/N 42-160-001), panel-wired on purpose. A monitor that
+went dark with the data bus would be useless for exactly the casualty it
+exists to predict.
+
+Two consequences the manuals have to teach, because both are playable:
+
+- **An unpowered board cannot latch up.** The parasitic path needs the rail.
+  Shedding a terminal during an event is a real defence, and the cost is
+  honest — the terminal is dark while it is protected, which is itself a
+  DEGRADED bus.
+- **The flux reading is the only warning there is.** It arrives before the
+  casualty, not with it, and nothing else on the ship will mention the event.
+
 **Repair (field form; MAINT attaches cost later).** `repair` on a segment,
 coupler, or RT (module) replaces the part — whatever its state — FDR-logged
 (with `fault_found` for review), interlocked the same way: you do not
 splice a live bus. It reports the same text either way, because refusing
 "nothing to repair" on a sound part would hand the player a verdict no
 instrument gave them (No God View). Replacing a good run is a wasted part;
-the bus table after re-energizing is the only verdict. Intermittents, SEU
-rates, and stress scheduling (the solar event that *causes* the latch-up):
-the stress-model increment. BC fault modes: the BC/firmware increment.
+the bus table after re-energizing is the only verdict. Intermittents and
+condition-triggered faults: a later increment. BC fault modes: the
+BC/firmware increment.
 
 ## 7. Procedures (manual set, staged)
 
@@ -343,6 +375,7 @@ the stress-model increment. BC fault modes: the BC/firmware increment.
 ```
 data                     read   (system summary: each bus with BC state)
 data.db.a                read   (BC bus table — analyzer v1)
+data.seu                 read   (ambient particle flux — the environment monitor)
 ```
 
 RTs have no operator address at increment 1: they are boxes, reached through
@@ -359,6 +392,13 @@ beyond `read` — schedule control is firmware, not panel.
   `data_bus: db.a`. RTs take their address from instance params
   (`rt_address`, 0–31; carried as float until the schema grows integer
   params — noted deviation, forward-compatible).
+- Part `hazard` blocks (increment 5) declare a part's own susceptibility:
+  per fault mode, a base rate in natural units (`rate_per_h`, converted at
+  load) and the environment sensitivity exponent. A part that declares no
+  hazard never fails on its own — which is the correct default, not a gap.
+- Scenario content (`scenario/1`, M2 subset per data-model.md) carries the
+  environment timeline and any scripted faults. It is the only way to stage an
+  event, and it is ordinary content: a casualty drill is a data file.
 - Transducers may declare `carried_by: <rt device id>` (increment 4). Absent
   = panel-wired, the M1 form and still the default. Present = the sample is
   published only in ticks where that RT answered its poll.
@@ -405,6 +445,14 @@ beyond `read` — schedule control is firmware, not panel.
   panel-wired one publishes unconditionally; `TelemetryStore.fresh` at the
   staleness horizon; a monitor with a stale source goes quiet and clears its
   latch.
+  Increment 5: hazard arithmetic per factor; an unpowered device never
+  latches up; a part with no `hazard` block never fails on its own; the
+  scenario timeline interpolates and the world writes what the ship reads.
+- **Determinism (increment 5):** `fault/<device>/<mode>` is drawn exactly once
+  per tick per pair, unconditionally — asserted by replaying the same scenario
+  with a terminal shed and confirming the *other* terminal's onset tick is
+  unmoved. Same seed, same scenario, same onset tick; different seed, different
+  onset tick.
 - **Determinism:** no new RNG streams at increments 1–4; injection is
   journal-external, like SCL. Increment 4 draws each sensor's noise stream
   **every tick regardless of transport**, so a bus casualty cannot shift the
