@@ -35,6 +35,10 @@ def tb1_bus() -> DataBus:
     return bus
 
 
+def dict_ohms(bus: DataBus, junction_id: str) -> dict[str, float | None]:
+    return {seg: ohms for seg, _, ohms in bus.ohms_at(junction_id)}
+
+
 def test_healthy_bus_is_fully_reachable_and_reads_terminators() -> None:
     bus = tb1_bus()
     assert bus.reachable("rt.5", "bc.a") and bus.reachable("rt.12", "bc.a")
@@ -98,6 +102,48 @@ def test_failed_couplers_partition_and_kill_like_the_trunk_they_are() -> None:
     assert not bus.has_trunk_short()
     bus.set_junction_state("j1", "short")
     assert bus.has_trunk_short()  # a shorted coupler is a trunk short
+
+
+def test_a_shorted_coupler_reads_zero_at_its_own_probe_point() -> None:
+    """Regression: the short is across the pair *at* the coupler, so every
+    trunk direction from that probe point reads ~0 — the meter must find the
+    fault where it is, not only from the neighbour (ata-42-data.md §6).
+    The stub tap is behind its transformer and still reads its winding.
+    """
+    bus = tb1_bus()
+    bus.set_junction_state("j1", "short")
+    at_j1 = {seg: ohms for seg, _, ohms in bus.ohms_at("j1")}
+    assert at_j1["seg.bc-j1"] == 0.0
+    assert at_j1["seg.j1-j2"] == 0.0
+    assert at_j1["stub.j1-rt5"] == STUB_WINDING_OHM
+    # ...and from the neighbour, looking back along the trunk at it.
+    assert dict_ohms(bus, "j2")["seg.j1-j2"] == 0.0
+
+
+def test_a_shorted_end_coupler_reads_zero_from_both_sides_of_its_run() -> None:
+    """j2 is the far-end coupler: at itself, and from j1 looking toward it.
+    Ohms alone cannot separate this from a short in seg.j1-j2 — both put ~0
+    at both ends of that run — which is why FIM 42-12 replaces the run first
+    and only then the coupler (§6: located to the interval, not the part).
+    """
+    bus = tb1_bus()
+    bus.set_junction_state("j2", "short")
+    assert dict_ohms(bus, "j2")["seg.j1-j2"] == 0.0
+    assert dict_ohms(bus, "j1")["seg.j1-j2"] == 0.0
+    assert dict_ohms(bus, "j1")["seg.bc-j1"] == 78.0  # the far side is clean
+
+
+def test_an_open_coupler_is_confirmed_from_the_neighbour_not_from_itself() -> None:
+    """An open coupler is a broken feed-through *between* its trunk faces:
+    each face still reads its own way out, so the OL appears one coupler
+    upstream. That asymmetry is the discriminator FIM 42-12 uses.
+    """
+    bus = tb1_bus()
+    bus.set_junction_state("j2", "open")
+    assert dict_ohms(bus, "j1")["seg.j1-j2"] is None  # OL toward the break
+    assert dict_ohms(bus, "j2")["seg.j1-j2"] == 78.0  # its own face is intact
+    assert dict_ohms(bus, "j2")["stub.j2-rt12"] == STUB_WINDING_OHM
+    assert not bus.reachable("rt.12", "bc.a")  # yet the terminal is dark
 
 
 def test_topology_validation_is_build_time() -> None:

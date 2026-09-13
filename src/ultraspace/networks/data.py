@@ -172,12 +172,23 @@ class DataBus:
         Reading is the far terminator through an unbroken path, None for OL
         (open), ~0 for a short; stub taps read the coupling-winding
         continuity. Bus must be de-energized (interlock lives ship-side).
+
+        The probed coupler's own state colors the trunk readings: a shorted
+        coupler is a short *across the pair at the probe point*, so every
+        trunk direction reads ~0 (spec §6 — a shorted coupler is a trunk
+        short, and the meter must say so where it is). An open coupler is a
+        broken feed-through *between* its two trunk faces: both faces still
+        read their own way out, which is exactly why a coupler break is
+        confirmed from the neighbouring coupler, not from this one.
         """
+        own_short = self._junctions[junction_id].state == "short"
         readings = []
         for seg_id, other in self._links.get(junction_id, []):
             state = self._segments[seg_id].state
             if other in self._rt_ids:  # stub tap: the winding, not the trunk
                 reading = {"ok": STUB_WINDING_OHM, "open": None, "short": 0.0}[state]
+            elif own_short:
+                reading = 0.0
             else:
                 reading = self._trunk_ohms(junction_id, seg_id, other)
             readings.append((seg_id, other, reading))
