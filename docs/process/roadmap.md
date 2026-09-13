@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: Living document · Last updated: 2026-07-18 · Owner: process
+Status: Living document · Last updated: 2026-09-12 · Owner: process
 Related: [workflow.md](workflow.md), [../vision.md](../vision.md)
 
 Milestones are defined by **acceptance vignettes** (playable proofs), not feature lists.
@@ -67,6 +67,14 @@ containment (a stub short cannot kill the bus; a trunk short kills it; a
 break partitions contiguously). DMM ohms probe points (de-energize
 interlock), repair verbs, five-mode fault matrix, WDM 42 harness sheets,
 FIM 42-12 executable with per-fault verdict-path conformance.
+
+Review + playtest 2026-09-12: the increment-3 harness shipped with coupler
+faults unwalked — the tree convicted innocent parts and died on a refusal for
+three of them — plus a lint-red HEAD, an assembly-order crash on validated
+content, and a No-God-View leak in the `repair` refusal. All fixed
+(66eb23d..51a92bd); conformance now derives its fault set from the blueprint so
+the coverage gap cannot recur. Note:
+[playtests/2026-09-12-m2-harness-tree.md](playtests/2026-09-12-m2-harness-tree.md).
 
 - Data network (DB-A/B, RT/BC, message schedules, bus analyzer tool); thermal loop v1
   (enough to make electronics care about heat); L2 forensic tier for PDU boards
