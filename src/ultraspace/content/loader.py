@@ -235,19 +235,25 @@ def _validate_bus_connectivity(
         adjacency.setdefault(a, set()).add(b)
         adjacency.setdefault(b, set()).add(a)
     bcs = sorted(d for d, behavior in members.items() if behavior == "bc")
-    rts = sorted(d for d, behavior in members.items() if behavior == "rt")
     for bc in bcs:
         seen = {bc}
         stack = [bc]
         while stack:
             here = stack.pop()
-            for other in adjacency.get(here, ()):
+            for other in sorted(adjacency.get(here, ())):
                 if other not in seen:
                     seen.add(other)
                     stack.append(other)
-        for rt in rts:
-            if rt not in seen:
-                err(f"rt {rt!r} is not reachable from bc {bc!r} on data bus {bus_id!r}")
+        # Every member, not just the terminals: a coupler wired to nothing is
+        # a build error too (spec §9), and it would otherwise sit in the ship
+        # as a probe point onto a bus it does not touch.
+        for member in sorted(members):
+            if members[member] == "harness_seg" or member in seen:
+                continue
+            err(
+                f"{members[member]} {member!r} is not reachable from bc {bc!r} "
+                f"on data bus {bus_id!r}"
+            )
 
 
 def _validate_device_refs(

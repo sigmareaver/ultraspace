@@ -111,3 +111,39 @@ steps:
     )
     tree = load_tree(tmp_path)
     assert any("unknown ship" in str(e) for e in tree.errors)
+
+
+DATA_BUS_SHIP = """
+schema: ship/1
+id: db-test
+name: "Data bus test rig"
+nodes: [{id: rail, c_f: 0.001}]
+data_buses: [{id: db.a, name: DB-A}]
+devices:
+  - {id: bc.a, part: core:bc-1553, ports: {pos: rail, neg: gnd}, data_bus: db.a}
+  - {id: rt.1, part: core:rt-1553, ports: {pos: rail, neg: gnd}, data_bus: db.a,
+     params: {rt_address: 1}}
+  - {id: j1, part: core:db-coupler, data_bus: db.a}
+  - {id: seg.bc-j1, part: core:db-harness, data_bus: db.a, ends: {a: bc.a, b: j1}}
+  - {id: stub.j1-rt1, part: core:db-harness, data_bus: db.a, ends: {a: j1, b: rt.1}}
+"""
+
+
+def test_stranded_coupler_is_a_build_error(tmp_path: Path) -> None:
+    """A coupler wired to nothing would sit in the ship as a probe point onto
+    a bus it does not touch — spec §9 wants every member reachable, not just
+    the terminals."""
+    for name in ("bc-1553", "rt-1553", "db-coupler", "db-harness"):
+        write(tmp_path, f"parts/{name}.yaml", (DATA_ROOT / "parts/42" / f"{name}.yaml").read_text())
+    write(tmp_path, "ships/ok.yaml", DATA_BUS_SHIP)
+    assert load_tree(tmp_path).ok
+
+    stranded = DATA_BUS_SHIP.replace(
+        "  - {id: j1, part: core:db-coupler, data_bus: db.a}\n",
+        "  - {id: j1, part: core:db-coupler, data_bus: db.a}\n"
+        "  - {id: j9, part: core:db-coupler, data_bus: db.a}\n",
+    )
+    write(tmp_path, "ships/ok.yaml", stranded)
+    tree = load_tree(tmp_path)
+    assert not tree.ok
+    assert any("'j9' is not reachable" in str(e) for e in tree.errors), tree.errors
