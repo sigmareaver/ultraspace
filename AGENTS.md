@@ -203,9 +203,33 @@ checklist lives there; walk it before declaring anything finished.
   off to it, and the U4 acceptance vignette runs end to end in
   `tests/casualties/test_u4_vignette.py`. Spec: failure-and-repair.md v0.4,
   ata-42-data.md v0.8; playtest note 2026-09-13 (MAINT swap).
+- **Increment 8 landed 2026-09-14**: the friction increment — five playtest findings
+  from three sessions, taken together because DB-B doubles the terminal count and
+  would have made two of them worse. (1) A timed wait is a **watch**:
+  `interaction/watch.py` is one primitive behind the teletype's `wait` and the
+  runner's wait step (feature parity by construction, not discipline). It ends on a
+  *new* warning — not a caution, not a lamp already lit — and reports what is left;
+  `StepSpec.hold_through_warning` opts a step out where stopping is the wrong act
+  (the bleed-down before you touch hardware). (2) `data.db.a zero --confirm` zeroes
+  the analyzer's per-RT totals and nothing else (not FAILED, not a fault, not a
+  lamp), FDR-logging what it discarded; the table prints `TOTAL n errors since
+  MET …`, and SOM 42-30-01 / MAINT 42-110-001 both close by zeroing and proving.
+  (3) `data read` annotates a silent terminal `SHED (cb.a2 open)` or `NOT FITTED
+  (position open since MET …)` from the ship's own observable knowledge — feeder
+  found by blueprint walk at assembly — leaving the BC's table pure, so a **bare**
+  NO RESPONSE is now the line that carries information. (4) `ProcedureSpec.targets`
+  is an ordered list of named substitutions filled into `scl`/`note`/`expect_text`/
+  `expect_telemetry`; MAINT 42-110-001 is one card printed for RT 12 and run by
+  conformance at both terminals; loader rejects unfilled placeholders and unused
+  keys. (5) `tools/check_manual_steps.py` joins `make check`: a claimed checklist
+  block must print steps 1..K and every step past K must be a verdict step — it
+  found real drift on day one (FIM 42-11's card collapsed a three-command feed
+  cycle into one number). Spec: command-language.md v0.3, ata-42-data.md v0.9,
+  data-model.md, manuals-as-gameplay.md, testing.md; playtest note 2026-09-14.
 - Next increments: DB-B failover, FIM 42-13 (the controller — the only harness-tree
-  exit left), MEL v1 (defer DB-A), thermal loop v1, intermittents, analyzer counter
-  reset and a procedure target parameter (both increment-7 playtest findings).
+  exit left), MEL v1 (defer DB-A), thermal loop v1, intermittents, the LOG station
+  with a notebook write verb (closes the two oldest open findings), and the small
+  vocabulary fixes from 2026-09-14 (`sys annunciator recall`, `wait --resume`).
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline

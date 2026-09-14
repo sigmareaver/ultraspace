@@ -134,25 +134,39 @@ latch-up, QRH, FIM, swap, functional test — with nothing read that an
 instrument did not say. Note:
 [playtests/2026-09-13-m2-maint-swap.md](playtests/2026-09-13-m2-maint-swap.md).
 
+Progress 2026-09-14: increment 8, the friction increment ✅ — five playtest
+findings from three sessions, paid off together because DB-B would have made
+two of them materially worse. A timed wait is now a *watch*: one primitive
+(`interaction/watch.py`) behind both the console's `wait` and the runner's wait
+step, ending the moment a warning goes new and reporting what is left; cautions
+do not interrupt, nor does a lamp already lit, and a step may opt out
+(`hold_through_warning`) where stopping is the wrong act. The analyzer gained
+`zero --confirm`, FDR-recorded with the totals it discards, so SOM 42-30-01's
+"errors 0" close-out is reachable after a casualty and now means *clean since
+somebody looked*, with the time printed beside it. `data read` gained
+per-terminal lines annotating a silent terminal `SHED (cb.a2 open)` or
+`NOT FITTED (position open since MET …)` from the ship's own observable
+knowledge — the BC's table stays pure, and a *bare* NO RESPONSE became the line
+that carries information. Procedures gained `targets`: MAINT 42-110-001 is one
+card, printed for RT 12, executed by conformance at both terminals. And
+`tools/check_manual_steps.py` joins `make check` — it found real drift the day
+it was written (FIM 42-11 printed a three-command feed cycle as one numbered
+line). Note:
+[playtests/2026-09-14-m2-friction.md](playtests/2026-09-14-m2-friction.md).
+
 - Data network (DB-A/B, RT/BC, message schedules, bus analyzer tool); thermal loop v1
   (enough to make electronics care about heat); L2 forensic tier for PDU boards
   (netlists, test points, DMM probing); intermittents and condition-triggered
   hazards (the stress model's v2 factors: thermal, duty, wear).
-- Bus table: mark a terminal *shed by command* so a planned shed does not bury
-  the error counters FIM 42-11 reads (playtest finding, 2026-09-13).
 - FIM Ch 24/42 with executable isolation tasks; QRH 24-01 and 31-01 (the executable
   priority page); generated QRH index; MEL v1 (defer DB-A!).
-- Teletype: `wait` must abort on a new warning-severity annunciation and say why
-  (playtest finding, 2026-09-13). A master warning interrupts what you are doing.
-- CI check that manual prose step numbers agree with their procedure's steps — the
-  lamp-test insertion shifted every reference in two chapters and grep caught it,
-  not the build.
-- Bus analyzer: a gated counter reset, FDR-recorded — a board swap leaves the old
-  error total against the new unit, so SOM 42-30-01's "errors 0" close-out is
-  unreachable after any casualty (playtest finding, 2026-09-13).
-- Procedures need a target parameter: MAINT 42-110-001 is printed for RT 12 and
-  played for RT 5 by hand-substituting an address and a breaker (NOTE 2). That does
-  not scale past two terminals (playtest finding, 2026-09-13).
+- `sys annunciator recall` is not a verb, though ATA 31 and QRH 42-01 both teach the
+  word — the panel answers to `read` (playtest finding, 2026-09-14).
+- An interrupted wait must be resumable as one act (`wait --resume`), not by retyping
+  the remainder the client just printed (playtest finding, 2026-09-14).
+- The watch covers `wait_s` steps only: SOM 42-30-02 holds with an expectation poll,
+  so a warning during its monitor step does not interrupt it (playtest finding,
+  2026-09-14).
 - `records` reaches only addressed positions, but the IPC issues a serial to every
   fitted unit — the battery's nameplate is in the catalog and unreadable on the ship.
 - MAINT station UI (the verbs and the stores sheet shipped 2026-09-13), LOG station
