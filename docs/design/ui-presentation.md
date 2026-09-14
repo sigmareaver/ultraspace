@@ -30,6 +30,9 @@ Persistent chrome, always visible:
 
 - **Annunciator row** (top): master caution/warning + chapter tiles (`ELEC`, `THERM`,
   `DATA`…), lamp-test-able (`sys annunciator test` — lamps are devices; they burn out).
+  Severity, the new-vs-acknowledged distinction and recall ordering are specified in
+  [systems/ata-31-indicating.md](systems/ata-31-indicating.md); M2 increment 6 ships
+  one tile per lamp plus two masters, with chapter tiles and burn-out still to come.
 - **Command bar** (bottom): SCL prompt with completion, last-result line.
 - **Clock strip**: sim time (UTC-like), mission elapsed, time compression state.
 
@@ -44,7 +47,8 @@ Persistent chrome, always visible:
   (`data/manuals/style-guide.md`).
 - Color is semantic and redundant with glyphs (colorblind-safe): warning red `▲`,
   caution amber `▲`, advisory cyan `●`, off/stale dim + `?`. Stale data is *visibly*
-  stale (age tag), per No God View.
+  stale (age tag), per No God View. Severity is also spelled in words on every text
+  surface, because the teletype has no color and must carry the same ranking.
 - Degrade gracefully: minimum 80×24 (reduced layouts), designed target 132×43 (a nod to
   real terminal history).
 

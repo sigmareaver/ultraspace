@@ -25,6 +25,7 @@ Template in ship-systems.md; one per ATA chapter, written before the code it gov
 | Doc | Contents |
 |---|---|
 | [ata-24-eps.md](design/systems/ata-24-eps.md) | Electrical power: composition, solver tiers, instruments, annunciators, EPS failure modes (M1) |
+| [ata-31-indicating.md](design/systems/ata-31-indicating.md) | Indicating & recording: annunciation severity, master warning/caution, new-vs-acknowledged, QRH v1 (M2) |
 | [ata-42-data.md](design/systems/ata-42-data.md) | Data network: bus model, harness topology, located faults, DMM isolation, procedure set (M2) |
 
 ## Engineering (`docs/engineering/`)

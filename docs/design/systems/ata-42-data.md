@@ -1,6 +1,6 @@
 # ATA 42 — Avionics & Data
 
-Status: Draft v0.6 (M2 increments 1–5 implementation contract) · Last updated: 2026-09-13 · Owner: design+engineering
+Status: Draft v0.7 (M2 increments 1–6 implementation contract) · Last updated: 2026-09-13 · Owner: design+engineering
 Related: [../ship-systems.md](../ship-systems.md), [../simulation-depth.md](../simulation-depth.md),
 [../failure-and-repair.md](../failure-and-repair.md), [ata-24-eps.md](ata-24-eps.md),
 [../../engineering/data-model.md](../../engineering/data-model.md)
@@ -133,9 +133,14 @@ intra-tick bus physics at L1 (that is what L2 is for, later M2).
   FAILED; the first good reply clears both. Per-RT total error counter is
   monotone — it is the analyzer's evidence, and it never rewinds.
 - **Bus health.** HEALTHY while every RT answers; DEGRADED while ≥1 RT is
-  FAILED. The BC publishes health as a telemetry fraction (RTs *not declared
-  FAILED* / total, 1.0 with zero RTs) every tick it is powered — and publishes nothing when
-  unpowered (instruments are devices; a dead instrument is silent, not lying).
+  FAILED; **FAILED** when none answers at all (increment 6). One function,
+  `DataBus.state_word()`, is the source of that word for the analyzer, the
+  `data read` summary and the annunciator grading, because a panel and a
+  display that disagree about the same bus teach the crew to trust neither
+  (ata-31-indicating.md §4). The BC publishes health as a telemetry fraction
+  (RTs *not declared FAILED* / total, 1.0 with zero RTs) every tick it is
+  powered — and publishes nothing when unpowered (instruments are devices; a
+  dead instrument is silent, not lying).
 - **Causality (the data-network conservation law).** Replies are counted only
   for polls issued in the same tick; received ≤ transmitted, always. No message
   is delivered that was never sent (simulation-depth.md). Test-enforced.
@@ -184,7 +189,7 @@ ata-24-eps.md §4). Migration is staged so every step stays honest:
 that RT answered the BC's poll. A transducer with no carrier is **panel-wired**
 — copper from the sensor to the gauge, no network in between.
 
-The split is a requirement, not a convenience. SOM 24-30-01 step 1 reads BUS E
+The split is a requirement, not a convenience. SOM 24-30-01 step 2 reads BUS E
 voltage with the whole ship cold and dark: a meter that needed the data bus
 could not be read until the data bus is powered, and the procedure that brings
 the ship up would have no instruments to bring it up with. Primary and standby
