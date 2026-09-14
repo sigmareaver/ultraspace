@@ -80,8 +80,10 @@ FIM_42_12_PATHS: dict[tuple[str, str], list[int]] = {
     # An open coupler reads clean at itself: J2's break shows as OL from J1 (13).
     ("j2", "open"): [1, 2, 4, 5, 6, 7, 8, 10, 11, 13, 14, 44, 45, 46, 47],
     # Same walk, everything clean — only then is the module convicted (15/23).
-    ("rt.12", "dead"): [1, 2, 4, 5, 6, 7, 8, 10, 11, 13, 15, 44, 45, 46, 47],
-    ("rt.5", "dead"): [1, 2, 3, 16, 17, 18, 19, 20, 22, 23, 44, 45, 46, 47],
+    # A board verdict *ends* this tree: wiring is spliced where you stand, a
+    # box is an LRU with its own task and its own close-out (MAINT 42-110-001).
+    ("rt.12", "dead"): [1, 2, 4, 5, 6, 7, 8, 10, 11, 13, 15],
+    ("rt.5", "dead"): [1, 2, 3, 16, 17, 18, 19, 20, 22, 23],
     # -- every terminal dark: the trunk tree --
     ("seg.bc-j1", "open"): [1, 24, 25, 26, 27, 28, 29, 44, 45, 46, 47],
     ("seg.bc-j1", "short"): [1, 24, 25, 26, 27, 28, 30, 31, 29, 44, 45, 46, 47],
@@ -132,7 +134,12 @@ def test_fim_42_12_convicts_each_harness_fault(tree: ContentTree) -> None:
         path = [r.step for r in result.steps]
         assert result.passed, f"{target}/{mode}: {result.failure_summary()}"
         assert path == expected_path, f"{target}/{mode}: walked {path}"
-        assert "MASTER CAUTION: clear" in sim.summary(), (target, mode)  # the bus is whole
+        if target.startswith("rt."):
+            # A board verdict hands off to MAINT 42-110-001 and fixes nothing:
+            # the tree ends holding a part number, not a repaired bus.
+            assert "DATA BUS A DEGRADED" in sim.summary(), (target, mode)
+        else:
+            assert "MASTER CAUTION: clear" in sim.summary(), (target, mode)  # the bus is whole
 
 
 def test_fim_42_12_rejects_a_live_bus_for_ohms_checks(tree: ContentTree) -> None:

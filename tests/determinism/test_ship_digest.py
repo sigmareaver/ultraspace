@@ -141,3 +141,49 @@ def test_an_unanswered_panel_reads_differently_from_an_answered_one(
         return sim.log.digest()
 
     assert digest(acknowledge=True) != digest(acknowledge=False)
+
+
+def test_a_maintenance_swap_replays_bit_identically(tree: ContentTree) -> None:
+    """A board change is journal state: same seed, same task, same digest."""
+
+    def digest(seed: int) -> str:
+        sim = Simulation(tree, "core:tb-1", master_seed=seed)
+        for procedure_id in ("core:som-24-30-01", "core:som-42-30-01"):
+            assert run_procedure(sim, tree.procedures[procedure_id]).passed
+        assert run_procedure(sim, tree.procedures["core:maint-42-110-001"]).passed
+        sim.step(30)
+        return sim.log.digest()
+
+    assert digest(42) == digest(42)
+
+
+def test_removing_a_board_does_not_move_the_other_terminals_onset(tree: ContentTree) -> None:
+    """The empty-rack case of stream isolation (ADR-0002).
+
+    An unfitted position still draws its hazard stream every tick — it simply
+    can never latch, because there is no board and no rail. If removal skipped
+    the draw, pulling RT 12 would move when RT 5 goes, and a recorded session
+    would stop replaying.
+    """
+    spec = tree.scenarios["core:spe-transit"]
+
+    def onsets(*, pull: bool) -> dict[str, int]:
+        sim = Simulation(tree, spec.ship, master_seed=1553)
+        ScenarioRun(spec, sim)
+        for procedure_id in ("core:som-24-30-01", "core:som-42-30-01"):
+            assert run_procedure(sim, tree.procedures[procedure_id]).passed
+        if pull:
+            for address in ("eps.cb.e2", "eps.cb.a2", "eps.cb.e3"):
+                sim.execute(address, "open", set())
+            sim.step(5)
+            assert sim.execute("data.db.a.rt.12", "remove", set()).ok
+            for address in ("eps.cb.e3", "eps.cb.e2"):  # RT 12's feed stays open
+                sim.execute(address, "close", set())
+        sim.step(6000)
+        return {e.source: e.tick for e in sim.log if e.kind == "fault-onset"}
+
+    fitted = onsets(pull=False)
+    pulled = onsets(pull=True)
+    assert "rt.5" in fitted, "the reference run must contain the casualty being compared"
+    assert pulled.get("rt.5") == fitted["rt.5"]
+    assert "rt.12" not in pulled  # a position with no board in it cannot latch up

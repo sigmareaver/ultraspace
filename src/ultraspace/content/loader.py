@@ -157,6 +157,14 @@ def _validate_ship_refs(tree: ContentTree, ship_id: str, ship: ShipSpec) -> None
         if ann.telemetry not in device_ids:
             err(f"annunciator {ann.id!r}: unknown telemetry source {ann.telemetry!r}")
 
+    stocked: set[str] = set()
+    for spare in ship.spares:
+        if spare.part not in tree.parts:
+            err(f"spares: unknown part {spare.part!r}")
+        if spare.part in stocked:
+            err(f"spares: duplicate line for {spare.part!r}")
+        stocked.add(spare.part)
+
 
 _DATA_BEHAVIORS = ("bc", "rt", "junction", "harness_seg")
 

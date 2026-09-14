@@ -28,6 +28,7 @@ __all__ = [
     "ScheduledFaultSpec",
     "Severity",
     "ShipSpec",
+    "SpareSpec",
     "StepSpec",
 ]
 
@@ -208,6 +209,18 @@ class AnnunciatorSpec(_Model):
         return self
 
 
+class SpareSpec(_Model):
+    """One line of the ship's stores (failure-and-repair.md, MAINT v1).
+
+    Quantity is whole units on the shelf at build. Spare serials continue the
+    fitted sequence for the same part number, so stocking a part costs exactly
+    this line and no authored identity.
+    """
+
+    part: str  # pack-qualified part id
+    qty: int = Field(gt=0)
+
+
 class ShipSpec(_Model):
     """`ship/1` — vessel blueprint (M1 electrical + M2 data-bus subset)."""
 
@@ -218,6 +231,7 @@ class ShipSpec(_Model):
     devices: list[DeviceSpec]
     data_buses: list[DataBusSpec] = Field(default_factory=list)
     annunciators: list[AnnunciatorSpec] = Field(default_factory=list)
+    spares: list[SpareSpec] = Field(default_factory=list)
 
 
 class StepSpec(_Model):

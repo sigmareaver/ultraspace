@@ -181,3 +181,12 @@ annunciators:
     message: "SEU HAZARD"
     severity: caution          # act soon: shed what you can before it breaks something
     high: 100.0                # no arm gate: a high reading is never spurious
+
+# Ship's stores (failure-and-repair.md, MAINT v1). Finite, and small: one
+# spare terminal is what a two-terminal ship carries, which means the second
+# latch-up of a voyage is a decision and not a formality. Serials are derived
+# (<P/N>/<NNNN>, continuing after the fitted units), so stocking a part costs
+# no authoring beyond this line.
+spares:
+  - part: core:rt-1553
+    qty: 1

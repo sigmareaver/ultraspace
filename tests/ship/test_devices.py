@@ -76,8 +76,8 @@ def test_a_refused_verb_says_what_the_device_does_answer(tb1: Simulation) -> Non
     """
     refusal = tb1.execute("eps.bus.a.precharge", "close", set())
     assert not refusal.ok
-    assert "start, stop, read" in refusal.text
+    assert "start, stop, records, read" in refusal.text
 
     breaker = tb1.execute("eps.cb.e1", "start", set())
     assert not breaker.ok
-    assert "open, close, reset, read" in breaker.text
+    assert "open, close, reset, records, read" in breaker.text

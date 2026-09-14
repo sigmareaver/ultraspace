@@ -1,0 +1,54 @@
+schema: procedure/1
+id: maint-42-110-001
+title: "Data Bus Remote Terminal — Removal and Installation"
+manual_ref: "MAINT 42-110-001"
+ship: core:tb-1
+# The verdict's other half (failure-and-repair.md, MAINT v1). Written for
+# RT 12; RT 5 differs only in feed breaker and address. The close-out (9-12)
+# is SOM 42-30-01 reprinted, because a task you must leave to finish is a
+# task nobody finishes (MAINT 00-00 §1).
+steps:
+  - step: 1
+    scl: "data.db.a.rt.12 records"
+    expect_text: "42-110-001"
+    note: "Nameplate: the part number to draw and the serial coming out."
+  - step: 2
+    scl: "maint read"
+    expect_text: "on shelf"
+    note: "Stores before breakers. An empty shelf reads NO SPARES and holds here."
+  - step: 3
+    scl: "eps cb.e2 open"
+    note: "Bus controller feed OPEN — the whole bus goes down for this (NOTE 1)."
+  - step: 4
+    scl: "eps cb.a2 open"
+    note: "RT 12 feed OPEN."
+  - step: 5
+    scl: "eps cb.e3 open"
+    note: "RT 5 feed OPEN: the interlock is on the bus, not the box."
+  - step: 6
+    wait_s: 1.0
+    note: "Allow 1 s for the rails to bleed. An open breaker is not a dead rail."
+  - step: 7
+    scl: "data.db.a.rt.12 remove"
+    expect_text: "removed"
+    note: "The position is now open. Ship flies with a hole in it until step 8."
+  - step: 8
+    scl: "data.db.a.rt.12 install"
+    expect_text: "installed"
+    note: "Lowest-serial spare of the matching part number, off the shelf."
+  - step: 9
+    scl: "eps cb.a2 close"
+    note: "Terminal feeds before the controller (SOM 42-30-01 NOTE 1)."
+  - step: 10
+    scl: "eps cb.e3 close"
+    note: "RT 5 feed restored."
+  - step: 11
+    scl: "eps cb.e2 close"
+    expect_telemetry: bc.a
+    expect_min: 1.0
+    within_s: 2.0
+    note: "Close-out: the controller's own health, 1.0 = every terminal answering."
+  - step: 12
+    scl: "data.db.a read"
+    expect_text: "OK"
+    note: "The table is the verdict on the function, not on the board (§Notes)."

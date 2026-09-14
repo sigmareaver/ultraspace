@@ -34,6 +34,7 @@ from ultraspace.ship.environment import CM2_PER_M2, Environment
 from ultraspace.ship.faults import apply_fault
 from ultraspace.ship.stress import Hazard, StressModel
 from ultraspace.ship.telemetry import STALE_AFTER_TICKS, TelemetryItem, TelemetryStore
+from ultraspace.ship.units import UnitRegistry
 
 __all__ = ["Simulation"]
 
@@ -58,6 +59,16 @@ ANNUNCIATOR_ADDRESS = "sys.annunciator"
 
 #: Lamp test duration: long enough to look along the row and see a dark one.
 LAMP_TEST_TICKS = 20
+
+#: The maintenance stores sheet (failure-and-repair.md, MAINT v1). Like the
+#: annunciator panel it is a fixture with an address and no electrical ports —
+#: a shelf is not a device, but it is a thing the crew reads.
+MAINT_ADDRESS = "maint.stores"
+
+#: Addressable fixtures: they answer verbs but own no hardware.
+FIXTURE_ADDRESSES = (ANNUNCIATOR_ADDRESS, MAINT_ADDRESS)
+
+SECONDS_PER_HOUR = 3600.0
 
 
 class Simulation:
@@ -85,12 +96,16 @@ class Simulation:
         self._rts_by_bus: dict[str, list[RemoteTerminal]] = {
             spec.id: [] for spec in self.ship.data_buses
         }
+        # Built before assembly: units are content-derived, so the registry is
+        # the authority every position binds itself to (ship/units.py).
+        self.units = UnitRegistry(self.ship, tree.parts)
 
         harness: list[DeviceSpec] = []  # segment specs, wired in a second pass
         for spec in self.ship.devices:
             part = tree.parts[spec.part]
             if part.behavior in _ELECTRICAL:
                 device = build_device(spec, part, DT_S)
+                device.unit = self.units.unit_at(spec.id)
                 if isinstance(device, Contactor):
                     device.bind(self.net, self.log, self.clock)
                 if spec.data_bus is not None:
@@ -104,17 +119,12 @@ class Simulation:
             if spec.scl is not None:
                 self.address_map.setdefault(spec.scl, []).append(spec.id)
 
-        self.address_map.setdefault(ANNUNCIATOR_ADDRESS, []).append(ANNUNCIATOR_ADDRESS)
+        for fixture in FIXTURE_ADDRESSES:
+            self.address_map.setdefault(fixture, []).append(fixture)
 
         for segment_spec in harness:  # segments join members, so members go first
             self._wire_harness_segment(segment_spec)
-
-        for spec in self.ship.devices:  # second pass: interlock references
-            if spec.interlock_open is not None:
-                device = self.devices[spec.id]
-                target = self.devices[spec.interlock_open]
-                if isinstance(device, Precharge) and isinstance(target, _Switch):
-                    device.bind_interlock(target)
+        self._bind_interlocks()
 
         self._xducer_parts = {spec.id: tree.parts[spec.part] for spec in self._xducers}
         self._carriers = self._bind_carriers()
@@ -122,9 +132,20 @@ class Simulation:
 
         self.scheduler.register(Phase.NETWORKS, "electrical", self._electrical_task)
         self.scheduler.register(Phase.NETWORKS, "data", self._data_task)
+        self.scheduler.register(Phase.DEVICES, "units", self._units_task)
         self.scheduler.register(Phase.FAULTS, "stress", self.stress.tick)
         self.scheduler.register(Phase.INSTRUMENTS, "instruments", self._instruments_task)
         self.scheduler.register(Phase.ANNUNCIATORS, "annunciators", self._annunciators_task)
+
+    def _bind_interlocks(self) -> None:
+        """Second assembly pass: precharge units name the tie they gate on."""
+        for spec in self.ship.devices:
+            if spec.interlock_open is None:
+                continue
+            device = self.devices[spec.id]
+            target = self.devices[spec.interlock_open]
+            if isinstance(device, Precharge) and isinstance(target, _Switch):
+                device.bind_interlock(target)
 
     def _build_hazards(self, tree: ContentTree) -> list[Hazard]:
         """Every declared (device, mode) susceptibility, in blueprint order.
@@ -185,7 +206,12 @@ class Simulation:
         elif isinstance(device, RemoteTerminal):
             bus.register_rt(device.address, spec.id)
             self._rts_by_bus[spec.data_bus].append(device)
-            device.bind(self._de_energized_gate(spec.data_bus), self.log, self.clock)
+            device.bind(
+                self._de_energized_gate(spec.data_bus),
+                self.log,
+                self.clock,
+                self._swap_gate(device),
+            )
         elif isinstance(device, BusJunction):
             bus.register_junction(spec.id)
             device.bind(bus, self._de_energized_gate(spec.data_bus), self.log, self.clock)
@@ -210,7 +236,128 @@ class Simulation:
 
         return de_energized
 
+    # -- maintenance (failure-and-repair.md, MAINT v1) ------------------------
+
+    def _swap_gate(self, rt: RemoteTerminal) -> Callable[[str], CommandResult]:
+        """The terminal's `remove`/`install`, once its interlock has passed."""
+
+        def swap(verb: str) -> CommandResult:
+            return self._remove_unit(rt) if verb == "remove" else self._install_unit(rt)
+
+        return swap
+
+    def _remove_unit(self, rt: RemoteTerminal) -> CommandResult:
+        if rt.unit is None:
+            return refused(f"{rt.id}: position already open — nothing to remove")
+        found = rt.pulled()  # the fault comes off with the box, silently
+        unit = self.units.remove(rt.id, self.clock.tick_index, fault_found=found)
+        rt.unit = None
+        self.log.append(
+            self.clock.tick_index,
+            rt.id,
+            "unit-removed",
+            {"serial": unit.serial, "part_number": unit.part_number, "fault_found": found},
+        )
+        return CommandResult(
+            True, f"{rt.id}: {unit.serial} removed — position open (MAINT 42-110-001)"
+        )
+
+    def _install_unit(self, rt: RemoteTerminal) -> CommandResult:
+        if rt.unit is not None:
+            return refused(
+                f"{rt.id}: position occupied by {rt.unit.serial} — remove it first "
+                f"(MAINT 42-110-001)"
+            )
+        unit = self.units.install(rt.id, rt.spec.part, self.clock.tick_index)
+        if unit is None:
+            pn = rt.part.part_number
+            return refused(f"{rt.id}: no {pn} in stores (IPC {pn}; MAINT 00-00 §1)")
+        rt.unit = unit
+        rt.dead = False  # a unit off the shelf has no history on this ship
+        rt.stuck_dominant = False
+        self.log.append(
+            self.clock.tick_index,
+            rt.id,
+            "unit-installed",
+            {"serial": unit.serial, "part_number": unit.part_number},
+        )
+        return CommandResult(
+            True, f"{rt.id}: {unit.serial} installed from stores — verify (SOM 42-30-01)"
+        )
+
+    def _records_one(self, device_id: str) -> CommandResult:
+        """A nameplate and a logbook page — not a verdict (MAINT 00-00 §4)."""
+        unit = self.units.unit_at(device_id)
+        if unit is None:
+            opened = self.units.open_positions.get(device_id)
+            if opened is None:
+                return CommandResult(True, f"{device_id}: no unit record")
+            since = SimClock(opened).mission_elapsed_str()
+            return CommandResult(True, f"{device_id}: NOT FITTED — position open since MET {since}")
+        device = self.devices.get(device_id)
+        hours = (
+            f"{unit.hours_s / SECONDS_PER_HOUR:.2f} h"
+            if device is not None and device.tracks_hours
+            else "not tracked"
+        )
+        lines = [
+            f"{device_id}: {unit.serial} — {unit.name}",
+            f"   P/N {unit.part_number}   position {device_id}   hours {hours}",
+        ]
+        lines.extend(
+            f"   MET {SimClock(event.tick).mission_elapsed_str()}  "
+            f"{event.what:<10} {event.position}"
+            for event in unit.history
+        )
+        return CommandResult(True, "\n".join(lines))
+
+    def _fixture_command(self, address: str, verb: str) -> CommandResult:
+        if address == ANNUNCIATOR_ADDRESS:
+            return self._annunciator_command(verb)
+        return self._maint_command(verb)
+
+    def _maint_command(self, verb: str) -> CommandResult:
+        if verb == "read":
+            return CommandResult(True, self._maint_summary())
+        return refused(f"{MAINT_ADDRESS}: verb {verb!r} not supported (try: read)")
+
+    def _maint_summary(self) -> str:
+        """Stores, bench, and open positions — the ship's own paperwork.
+
+        The only place an emptied position is written down: the bus controller
+        cannot see an empty rack and says NO RESPONSE either way (MAINT 00-00 §3).
+        """
+        lines = [f"{self.ship.name} — MAINT — MET {self.clock.mission_elapsed_str()}", "STORES"]
+        if not self.units.stores:
+            lines.append("  (no spares carried)")
+        for part_id, shelf in self.units.stores.items():
+            part_number, name = self.units.store_parts[part_id]
+            count = f"{len(shelf)} on shelf" if shelf else "NO SPARES"
+            lines.append(f"  {part_number:<12} {name:<42} {count}")
+        lines.append("BENCH")
+        if not self.units.bench:
+            lines.append("  (nothing removed)")
+        lines.extend(
+            f"  {unit.serial}  off {unit.history[-1].position} at MET "
+            f"{SimClock(unit.history[-1].tick).mission_elapsed_str()} — not bench-tested"
+            for unit in self.units.bench
+        )
+        lines.append("OPEN POSITIONS")
+        if not self.units.open_positions:
+            lines.append("  (none)")
+        lines.extend(
+            f"  {device_id}  NOT FITTED since MET {SimClock(tick).mission_elapsed_str()}"
+            for device_id, tick in self.units.open_positions.items()
+        )
+        return "\n".join(lines)
+
     # -- tick tasks ----------------------------------------------------------
+
+    def _units_task(self, tick: int) -> None:
+        """Accrue powered hours. Blueprint order; only where the gate is known."""
+        for device_id, device in self.devices.items():
+            if device.tracks_hours and device.operating:
+                self.units.accrue(device_id, DT_S)
 
     def _electrical_task(self, tick: int) -> None:
         self.net.begin()
@@ -329,8 +476,8 @@ class Simulation:
     # -- command surface (used by interaction/scl) ----------------------------
 
     def execute(self, address: str, verb: str, flags: set[str]) -> CommandResult:
-        if address == ANNUNCIATOR_ADDRESS:
-            return self._annunciator_command(verb)
+        if address in FIXTURE_ADDRESSES:
+            return self._fixture_command(address, verb)
         device_ids = self.address_map.get(address)
         if device_ids is None:
             return refused(f"unknown address {address!r}")
@@ -340,6 +487,11 @@ class Simulation:
                 for d in device_ids
             ]
             return CommandResult(all(p.ok for p in parts), "\n".join(p.text for p in parts))
+        if verb == "records":
+            # Answered everywhere, like `read`: every box on the ship has a
+            # nameplate, whether or not it has a verb (MAINT 00-00 §1).
+            records = [self._records_one(d) for d in device_ids]
+            return CommandResult(all(r.ok for r in records), "\n".join(r.text for r in records))
         actionable = [d for d in device_ids if d in self.devices]
         if len(actionable) != 1:
             return refused(f"{address}: verb {verb!r} not supported here")
@@ -431,6 +583,8 @@ class Simulation:
             return self._data_summary()
         if root == "sys":
             return self._annunciator_summary()
+        if root == "maint":
+            return self._maint_summary()
         return self.summary()  # eps is the M1 default summary
 
     def _data_summary(self) -> str:

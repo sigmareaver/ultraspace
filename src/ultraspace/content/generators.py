@@ -12,8 +12,15 @@ from __future__ import annotations
 
 from ultraspace.content.loader import GROUND_NODE, ContentTree
 from ultraspace.content.schemas import DataBusSpec, DeviceSpec, PartSpec, ShipSpec
+from ultraspace.content.units import assign_serials
 
-__all__ = ["generate_all", "generate_ship_wdm", "generate_ship_wdm42", "sync_generated"]
+__all__ = [
+    "generate_all",
+    "generate_ship_ipc",
+    "generate_ship_wdm",
+    "generate_ship_wdm42",
+    "sync_generated",
+]
 
 _SWITCHING = ("contactor", "breaker", "precharge")
 _XDUCERS = ("xducer_v", "xducer_i", "xducer_soc")
@@ -315,6 +322,81 @@ def _bus_sheet(tree: ContentTree, ship: ShipSpec, bus: DataBusSpec) -> str:
     return "\n".join(lines)
 
 
+def generate_ship_ipc(tree: ContentTree, ship_qid: str) -> str:
+    """IPC — what is fitted where, by serial, and what is on the shelf.
+
+    The catalog MAINT refuses against (failure-and-repair.md, MAINT v1). It is
+    generated from the same blueprint the registry serializes, so the sheet
+    cannot promise a spare the ship does not carry, and the serial printed here
+    is the serial the crew reads off the nameplate.
+    """
+    ship = tree.ships[ship_qid]
+    serials = assign_serials(ship, tree.parts)
+    sections = [
+        _HEADER.format(ship_dir=ship.id),
+        f"# IPC — Generated Parts Catalog — {ship.name} ({ship_qid})",
+        _fitted_units(tree, ship, serials.fitted),
+        _stores(tree, ship, serials.stores),
+        _part_numbers(tree, ship),
+    ]
+    text = "\n\n".join(sections) + "\n"
+    for line in text.splitlines():
+        if len(line) > _MAX_WIDTH:
+            raise ValueError(f"generated line exceeds {_MAX_WIDTH} cols: {line!r}")
+    return text
+
+
+def _fitted_units(tree: ContentTree, ship: ShipSpec, fitted: dict[str, str]) -> str:
+    rows = ["## Fitted units {#fitted}", ""]
+    rows.append("| Position | SCL | P/N | Serial |")
+    rows.append("|---|---|---|---|")
+    for device in ship.devices:
+        part = tree.parts[device.part]
+        rows.append(
+            f"| {device.id} | `{device.scl or '-'}` | {part.part_number} | {fitted[device.id]} |"
+        )
+    return "\n".join(rows)
+
+
+def _stores(tree: ContentTree, ship: ShipSpec, stores: dict[str, list[str]]) -> str:
+    """Shelf contents as a serial *range*: a stocked kit must never wrap."""
+    rows = ["## Stores {#stores}", ""]
+    if not ship.spares:
+        return "\n".join([*rows, "No spares carried."])
+    rows.append("| P/N | Name | On shelf | Serials |")
+    rows.append("|---|---|---|---|")
+    for spare in ship.spares:
+        part = tree.parts[spare.part]
+        serials = stores[spare.part]
+        span = serials[0] if len(serials) == 1 else f"{serials[0]} .. /{serials[-1].split('/')[1]}"
+        rows.append(f"| {part.part_number} | {part.name} | {len(serials)} | {span} |")
+    return "\n".join(rows)
+
+
+def _part_numbers(tree: ContentTree, ship: ShipSpec) -> str:
+    rows = ["## Part numbers {#part-numbers}", ""]
+    rows.append("| P/N | Name | ATA | TL | Unit mass | Fitted | Spare |")
+    rows.append("|---|---|---|---|---|---|---|")
+    fitted_counts: dict[str, int] = {}
+    parts: dict[str, PartSpec] = {}
+    for device in ship.devices:
+        part = tree.parts[device.part]
+        fitted_counts[part.part_number] = fitted_counts.get(part.part_number, 0) + 1
+        parts[part.part_number] = part
+    spare_counts: dict[str, int] = {}
+    for spare in ship.spares:
+        part = tree.parts[spare.part]
+        spare_counts[part.part_number] = spare_counts.get(part.part_number, 0) + spare.qty
+        parts.setdefault(part.part_number, part)
+    for pn in sorted(parts):
+        part = parts[pn]
+        rows.append(
+            f"| {pn} | {part.name} | {part.ata} | {part.tech_level} | {part.mass_kg:g} kg "
+            f"| {fitted_counts.get(pn, 0)} | {spare_counts.get(pn, 0)} |"
+        )
+    return "\n".join(rows)
+
+
 def generate_all(tree: ContentTree) -> dict[str, str]:
     """{relative path under data/manuals: content} for every ship, sorted."""
     out: dict[str, str] = {}
@@ -323,6 +405,7 @@ def generate_all(tree: ContentTree) -> dict[str, str]:
         out[f"wdm/24/generated/{ship.id}.md"] = generate_ship_wdm(tree, qid)
         if ship.data_buses:
             out[f"wdm/42/generated/{ship.id}.md"] = generate_ship_wdm42(tree, qid)
+        out[f"ipc/generated/{ship.id}.md"] = generate_ship_ipc(tree, qid)
     return out
 
 

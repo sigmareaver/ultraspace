@@ -12,8 +12,10 @@ from ultraspace.content.schemas import (
     PartSpec,
     ProcedureSpec,
     ShipSpec,
+    SpareSpec,
     StepSpec,
 )
+from ultraspace.content.units import ShipSerials, assign_serials
 
 __all__ = [
     "AnnunciatorSpec",
@@ -24,8 +26,11 @@ __all__ = [
     "NodeSpec",
     "PartSpec",
     "ProcedureSpec",
+    "ShipSerials",
     "ShipSpec",
+    "SpareSpec",
     "StepSpec",
+    "assign_serials",
     "load_manual_pages",
     "load_tree",
 ]

@@ -221,7 +221,8 @@ def test_stub_open_and_dead_module_differ_only_in_the_stub(tree: ContentTree) ->
     _de_energize_db_a(d, sim)
     dmm = d.execute_line("data.db.a.j2 read").text
     assert "stub.j2-rt12 (toward rt.12): 2.1 ohm" in dmm  # stub good: the board
-    d.execute_line("data.db.a.rt.12 repair")
+    d.execute_line("data.db.a.rt.12 remove")  # a board is an LRU, not a splice
+    d.execute_line("data.db.a.rt.12 install")
     _re_energize_db_a(d, sim)
     assert "HEALTHY" in d.execute_line("data.db.a read").text
 

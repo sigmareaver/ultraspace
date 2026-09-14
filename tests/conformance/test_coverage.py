@@ -9,13 +9,14 @@ when the procedure count grows further.
 from __future__ import annotations
 
 from test_fim_ch42 import COVERED as COVERED_FIM_42
+from test_maint_ch42 import COVERED as COVERED_MAINT_42
 from test_qrh_ch42 import COVERED as COVERED_QRH_42
 from test_som_ch24 import COVERED as COVERED_24
 from test_som_ch42 import COVERED as COVERED_42
 
 from ultraspace.content import ContentTree
 
-ALL_COVERED = COVERED_24 | COVERED_42 | COVERED_FIM_42 | COVERED_QRH_42
+ALL_COVERED = COVERED_24 | COVERED_42 | COVERED_FIM_42 | COVERED_MAINT_42 | COVERED_QRH_42
 
 
 def test_every_shipped_procedure_is_covered(tree: ContentTree) -> None:
@@ -26,3 +27,4 @@ def test_chapter_suites_do_not_overlap() -> None:
     assert not (COVERED_24 & COVERED_42)
     assert not (COVERED_24 & COVERED_FIM_42)
     assert not (COVERED_42 & COVERED_FIM_42)
+    assert not (COVERED_FIM_42 & COVERED_MAINT_42)

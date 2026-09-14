@@ -89,10 +89,11 @@ steps:
     on_pass_goto: 44
     note: "VERDICT: coupler J2 is open — the coupler is replaced."
   - step: 15
-    scl: "data.db.a.rt.12 repair"
-    expect_text: "replaced"
-    on_pass_goto: 44
-    note: "VERDICT: stub, trunk, and coupler good, terminal silent — the module is replaced."
+    scl: "data.db.a.rt.12 records"
+    expect_text: "42-110-001"
+    on_pass_goto: 0
+    note: "VERDICT: stub, trunk and coupler good, terminal silent — the module.
+      A board is an LRU: take the nameplate and leave the tree (MAINT 42-110-001)."
   # -- one-dark tree, RT 5 (coupler J1) --
   # J1 hangs off seg.bc-j1: a fault in that run or in J1 itself darkens the
   # whole bus, so one-dark-at-RT-5 leaves only the stub and the board.
@@ -126,10 +127,11 @@ steps:
     on_fail_goto: 23
     note: "~0 ohm on the stub tap = the stub is shorted."
   - step: 23
-    scl: "data.db.a.rt.5 repair"
-    expect_text: "replaced"
-    on_pass_goto: 44
-    note: "VERDICT: stub good, terminal silent — the module is replaced."
+    scl: "data.db.a.rt.5 records"
+    expect_text: "42-110-001"
+    on_pass_goto: 0
+    note: "VERDICT: stub good, terminal silent — the module. Nameplate, then
+      out of the tree: the swap is MAINT 42-110-001, which closes itself out."
   # -- trunk tree (every terminal dark) --
   - step: 24
     scl: "eps cb.e2 open"
