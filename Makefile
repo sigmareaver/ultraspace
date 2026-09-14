@@ -19,6 +19,7 @@ lint:
 	uv run ruff format --check src tests tools
 	uv run python tools/check_imports.py
 	uv run python tools/check_units.py
+	uv run python tools/check_manual_steps.py
 
 format:
 	uv run ruff format src tests tools

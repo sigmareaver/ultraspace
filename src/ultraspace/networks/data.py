@@ -80,6 +80,7 @@ class DataBus:
         self.termination_ohm = termination_ohm
         self.tx_total = 0  # polls transmitted
         self.rx_total = 0  # replies received; invariant: rx_total <= tx_total
+        self.errors_zeroed_tick = 0  # when the totals below last started over
         self._bc_id: str | None = None
         self._junctions: dict[str, _Member] = {}
         self._segments: dict[str, _Segment] = {}
@@ -245,6 +246,25 @@ class DataBus:
             rt.error_total += 1
             if rt.consec_timeouts >= FAIL_AFTER_POLLS:
                 rt.failed = True
+
+    def zero_error_totals(self, tick: int) -> dict[int, int]:
+        """Start the analyzer's evidence over; return what was discarded.
+
+        A maintenance act on the *analyzer*, not on the bus: the per-RT totals
+        go to zero and nothing else moves — not the consecutive-timeout
+        counters, not a FAILED declaration, not a fault. The totals are
+        monotone between zeroings, which is what makes them evidence
+        (ata-42-data.md §3).
+        """
+        discarded = {address: rt.error_total for address, rt in self._rts.items()}
+        for rt in self._rts.values():
+            rt.error_total = 0
+        self.errors_zeroed_tick = tick
+        return discarded
+
+    def error_total(self) -> int:
+        """Errors on this bus since the counters were last zeroed."""
+        return sum(rt.error_total for rt in self._rts.values())
 
     def health_frac(self) -> float:
         """Fraction of registered RTs not declared FAILED (1.0 when none)."""

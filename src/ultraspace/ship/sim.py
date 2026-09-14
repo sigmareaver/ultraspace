@@ -50,6 +50,7 @@ _ELECTRICAL = (
     "harness_seg",
 )
 _XDUCERS = ("xducer_v", "xducer_i", "xducer_soc", "xducer_flux")
+_SWITCHING = ("contactor", "breaker", "precharge")
 DT_S = TICK_US / 1_000_000
 
 #: The annunciator panel's SCL address. A *fixture*, not yet a device: it has
@@ -126,6 +127,7 @@ class Simulation:
             self._wire_harness_segment(segment_spec)
         self._bind_interlocks()
 
+        self._feeders = self._find_feeders(tree)
         self._xducer_parts = {spec.id: tree.parts[spec.part] for spec in self._xducers}
         self._carriers = self._bind_carriers()
         self.stress = StressModel(self._build_hazards(tree), self.rng, self.environment, self.log)
@@ -200,7 +202,7 @@ class Simulation:
         assert spec.data_bus is not None  # loader-validated
         bus = self.data_buses[spec.data_bus]
         if isinstance(device, BusController):
-            device.bind(bus)
+            device.bind(bus, self.log, self.clock)
             bus.bind_bc(spec.id)
             self._bcs[spec.data_bus] = device
         elif isinstance(device, RemoteTerminal):
@@ -217,6 +219,29 @@ class Simulation:
             device.bind(bus, self._de_energized_gate(spec.data_bus), self.log, self.clock)
         elif isinstance(device, HarnessSegment):
             device.bind(bus, self._de_energized_gate(spec.data_bus), self.log, self.clock)
+
+    def _find_feeders(self, tree: ContentTree) -> dict[str, str]:
+        """Device id -> the switching device that feeds it, by blueprint walk.
+
+        The same upstream walk the WDM feeder trees are generated from, so a
+        rewired ship cannot print a stale breaker id. Nothing here is a view
+        into the sim: a breaker position is something the crew reads off a
+        panel, and this only saves them the walk (ata-42-data.md §3).
+        """
+        on_node: dict[str, list[DeviceSpec]] = {}
+        for spec in self.ship.devices:
+            for node in spec.ports.values():
+                on_node.setdefault(node, []).append(spec)
+        feeders: dict[str, str] = {}
+        for spec in self.ship.devices:
+            feed = spec.ports.get("pos")
+            if feed is None:
+                continue
+            for other in on_node.get(feed, []):
+                if other.id != spec.id and tree.parts[other.part].behavior in _SWITCHING:
+                    feeders[spec.id] = other.id
+                    break
+        return feeders
 
     def _wire_harness_segment(self, spec: DeviceSpec) -> None:
         """Second assembly pass: join two bus members with a harness run.
@@ -602,10 +627,41 @@ class Simulation:
             # misses), so a terminal that just started missing still counts
             # here while the table already shows NO RESPONSE against it.
             lines.append(f"{bus_id}: {state} — {healthy}/{total} RTs healthy (bc {bc.id})")
+            lines.extend(self._silent_terminal_lines(bus_id))
         if not self.data_buses:
             lines.append("(no data buses fitted)")
         lines.extend(self._seu_lines())
         return "\n".join(lines)
+
+    def _silent_terminal_lines(self, bus_id: str) -> list[str]:
+        """One line per terminal the bus has declared FAILED, annotated.
+
+        The BC's table answers for the BC: a terminal that does not reply is
+        NO RESPONSE and nothing more. This page is the *ship's*, and the ship
+        knows two things the controller cannot — which feeder is open, and
+        which position maintenance left empty. Both are facts the crew could
+        read at another address; printing them here saves the walk and invents
+        nothing. A bare NO RESPONSE therefore carries real information: the
+        ship has no innocent explanation for this one (ata-42-data.md §3).
+        """
+        bus = self.data_buses[bus_id]
+        lines = []
+        for rt in self._rts_by_bus[bus_id]:
+            if not bus.rt(rt.address).failed:
+                continue
+            lines.append(f"  RT {rt.address}: NO RESPONSE{self._silence_note(rt)}")
+        return lines
+
+    def _silence_note(self, rt: RemoteTerminal) -> str:
+        if rt.unit is None:
+            opened = self.units.open_positions.get(rt.id)
+            since = SimClock(opened).mission_elapsed_str() if opened is not None else "assembly"
+            return f" — NOT FITTED (position open since MET {since})"
+        feeder = self._feeders.get(rt.id)
+        switch = self.devices.get(feeder) if feeder is not None else None
+        if isinstance(switch, _Switch) and switch.state != "closed":
+            return f" — SHED ({feeder} {switch.state})"
+        return ""
 
     def _seu_lines(self) -> list[str]:
         """The particle environment, as the monitor reports it (42-00-00 §9).

@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from ultraspace.content.schemas import ProcedureSpec, StepSpec
 from ultraspace.interaction.scl import Dispatcher
+from ultraspace.interaction.watch import watch
 from ultraspace.ship import Simulation
 from ultraspace.ship.sim import DT_S
 
@@ -31,21 +32,27 @@ class ProcedureResult:
     procedure_id: str
     passed: bool
     steps: list[StepResult]
+    target: str | None = None
 
     def failure_summary(self) -> str:
         failed = [s for s in self.steps if not s.ok]
         return "; ".join(f"step {s.step}: {s.detail}" for s in failed) or "all steps passed"
 
 
-def run_procedure(sim: Simulation, proc: ProcedureSpec) -> ProcedureResult:
+def run_procedure(
+    sim: Simulation, proc: ProcedureSpec, target: str | None = None
+) -> ProcedureResult:
+    values = proc.target_values(target)
+    if target is None and proc.targets:
+        target = proc.targets[0].name  # the printed variant, named in the FDR
     dispatcher = Dispatcher(sim)
-    sim.log.append(sim.clock.tick_index, "procedure", "start", {"id": proc.id})
+    sim.log.append(sim.clock.tick_index, "procedure", "start", {"id": proc.id, "target": target})
     results: list[StepResult] = []
     max_jumps = 2 * len(proc.steps)  # branch-loop guard: a tree, not a hamster wheel
     jumps = 0
     index = 0
     while 0 <= index < len(proc.steps):
-        step = proc.steps[index]
+        step = proc.steps[index].resolve(values)
         result, goto = _run_step(sim, dispatcher, step)
         results.append(result)
         if not result.ok:
@@ -62,9 +69,12 @@ def run_procedure(sim: Simulation, proc: ProcedureSpec) -> ProcedureResult:
         index = goto - 1  # steps are numbered 1..N in order (schema-validated)
     passed = bool(results) and all(r.ok for r in results)
     sim.log.append(
-        sim.clock.tick_index, "procedure", "complete" if passed else "failed", {"id": proc.id}
+        sim.clock.tick_index,
+        "procedure",
+        "complete" if passed else "failed",
+        {"id": proc.id, "target": target},
     )
-    return ProcedureResult(proc.id, passed, results)
+    return ProcedureResult(proc.id, passed, results, target)
 
 
 def _run_step(
@@ -72,8 +82,7 @@ def _run_step(
 ) -> tuple[StepResult, int | None]:
     """Run one step; return its result and an optional branch target."""
     if step.wait_s is not None:
-        sim.step_s(step.wait_s)
-        detail = f"waited {step.wait_s} s"
+        detail = _watch(sim, step)
     else:
         assert step.scl is not None  # schema-validated
         result = dispatcher.execute_line(step.scl)
@@ -116,6 +125,36 @@ def _run_step(
             target,
         )
     return indication, None
+
+
+def _watch(sim: Simulation, step: StepSpec) -> str:
+    """Run out a timed wait, watching (interaction/watch.py).
+
+    Being interrupted is not a failed step — it is the ship talking over the
+    checklist, which is its right. The next step is still offered; what changes
+    is that the crew has been told, in the step result and in the FDR.
+    """
+    assert step.wait_s is not None
+    result = watch(sim, step.wait_s, hold=step.hold_through_warning)
+    said = ", ".join(result.warnings)
+    if not result.interrupted:
+        if result.warnings:
+            return f"waited {step.wait_s} s — held through WARNING: {said} (step NOTE)"
+        return f"waited {step.wait_s} s"
+    sim.log.append(
+        sim.clock.tick_index,
+        "procedure",
+        "wait-interrupted",
+        {
+            "step": step.step,
+            "remaining_s": result.remaining_s,
+            "messages": result.warnings,
+        },
+    )
+    return (
+        f"waited {result.elapsed_s:.1f} s of {step.wait_s} s — INTERRUPTED by "
+        f"WARNING: {said} ({result.remaining_s:.1f} s of the wait remaining)"
+    )
 
 
 def _await_indication(sim: Simulation, step: StepSpec, detail: str) -> StepResult:

@@ -466,12 +466,19 @@ class BusController(DataDevice):
 
     kind = "bc"
 
+    #: `zero` commands the analyzer, not the schedule — see `execute`.
+    verbs = ("zero",)
+
     def __init__(self, spec: DeviceSpec, part: PartSpec) -> None:
         super().__init__(spec, part)
         self._bus: DataBus | None = None  # bound at assembly
+        self._log: EventLog | None = None
+        self._clock: SimClock | None = None
 
-    def bind(self, bus: DataBus) -> None:
+    def bind(self, bus: DataBus, log: EventLog, clock: SimClock) -> None:
         self._bus = bus
+        self._log = log
+        self._clock = clock
 
     @property
     def bus(self) -> DataBus:
@@ -485,7 +492,31 @@ class BusController(DataDevice):
         return f"{self.id}: ON AIR — {self.bus.id} {state}"
 
     def execute(self, verb: str, flags: set[str]) -> CommandResult:
-        return self.unsupported(verb)  # schedule control is firmware, not panel
+        # Schedule control is firmware, not panel: there is no verb that
+        # starts, stops or reorders a minor frame. `zero` is maintenance on
+        # the analyzer (ata-42-data.md §3).
+        if verb != "zero":
+            return self.unsupported(verb)
+        if not self.energized:
+            return refused(f"{self.id}: controller unpowered — nothing to zero")
+        if "confirm" not in flags:
+            return refused(
+                f"{self.id}: zero discards the error evidence — read it first, then "
+                f"'zero --confirm' (SOM 42-30-01)"
+            )
+        assert self._log is not None and self._clock is not None  # bound at assembly
+        tick = self._clock.tick_index
+        discarded = self.bus.zero_error_totals(tick)
+        self._log.append(
+            tick,
+            self.id,
+            "analyzer-zeroed",
+            {"bus": self.bus.id, "discarded": {str(a): n for a, n in discarded.items()}},
+        )
+        total = sum(discarded.values())
+        return CommandResult(
+            True, f"{self.id}: {self.bus.id} counters zeroed — {total} errors discarded"
+        )
 
     def read_result(self) -> CommandResult:
         return CommandResult(True, self.readout())
@@ -507,6 +538,10 @@ class BusController(DataDevice):
             else:
                 word = "NO DATA"  # never polled (BC just energized)
             lines.append(f"  {address:<4} {word:<18} {rt.error_total}")
+        since = "power-up"
+        if self._clock is not None and bus.errors_zeroed_tick:
+            since = f"MET {SimClock(bus.errors_zeroed_tick).mission_elapsed_str()}"
+        lines.append(f"  TOTAL {bus.error_total()} errors since {since}")
         return "\n".join(lines)
 
 

@@ -10,6 +10,8 @@ rack.
 
 from __future__ import annotations
 
+import pytest
+
 from ultraspace.content import ContentTree
 from ultraspace.interaction import Dispatcher, run_procedure
 from ultraspace.interaction.procedures import ProcedureResult
@@ -18,14 +20,17 @@ from ultraspace.testing import inject_fault
 
 COVERED = {"core:maint-42-110-001"}
 
+#: Every position MAINT 42-110-001 claims. Both are walked end to end.
+TARGETS = {"rt.12", "rt.5"}
 
-def convicted(tree: ContentTree) -> Simulation:
-    """TB-1 up, RT 12 dead and declared — the state FIM 42-12 exits in."""
+
+def convicted(tree: ContentTree, position: str = "rt.12") -> Simulation:
+    """TB-1 up, the named terminal dead and declared — FIM 42-12's exit state."""
     sim = Simulation(tree, "core:tb-1", master_seed=42)
     for proc_id in ("core:som-24-30-01", "core:som-42-30-01"):
         result = run_procedure(sim, tree.procedures[proc_id])
         assert result.passed, result.failure_summary()
-    inject_fault(sim, "rt.12", "dead")
+    inject_fault(sim, position, "dead")
     sim.step(4)
     return sim
 
@@ -34,14 +39,27 @@ def path(result: ProcedureResult) -> list[int]:
     return [s.step for s in result.steps]
 
 
-def test_maint_42_110_001_restores_the_terminal(tree: ContentTree) -> None:
-    sim = convicted(tree)
+@pytest.mark.parametrize("target", sorted(TARGETS))
+def test_maint_42_110_001_restores_the_terminal(tree: ContentTree, target: str) -> None:
+    """One task card, every identical position. The page is printed for RT 12;
+    a variant nobody executes is a variant nobody can trust."""
+    sim = convicted(tree, target)
     assert "DATA BUS A DEGRADED" in sim.panel.active_messages()
-    result = run_procedure(sim, tree.procedures["core:maint-42-110-001"])
+    result = run_procedure(sim, tree.procedures["core:maint-42-110-001"], target)
     assert result.passed, result.failure_summary()
-    assert path(result) == list(range(1, 13))
+    assert result.target == target
+    assert path(result) == list(range(1, 16))
     assert "HEALTHY" in sim.execute("data.db.a", "read", set()).text
     assert "DATA BUS A DEGRADED" not in sim.panel.active_messages()
+    # The counters belonged to the board that came out; a fresh board must not
+    # inherit them (2026-09-14 playtest).
+    assert "TOTAL 0 errors" in sim.execute("data.db.a", "read", set()).text
+
+
+def test_every_target_the_task_claims_is_executed(tree: ContentTree) -> None:
+    """The canary for the parametrization above: adding a target to the YAML
+    without a position to run it at fails here, not in the field."""
+    assert set(tree.procedures["core:maint-42-110-001"].target_names()) == TARGETS
 
 
 def test_the_board_that_went_in_is_not_the_board_that_came_out(tree: ContentTree) -> None:

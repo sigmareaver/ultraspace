@@ -7,9 +7,14 @@ forbid unknown fields — typos are build errors, not silent defaults.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+#: `{name}` markers a procedure target fills in (data-model.md, procedure/1).
+PLACEHOLDER = re.compile(r"\{([a-z][a-z0-9_]*)\}")
 
 __all__ = [
     "HAZARD_MODES",
@@ -30,6 +35,7 @@ __all__ = [
     "ShipSpec",
     "SpareSpec",
     "StepSpec",
+    "TargetSpec",
 ]
 
 Severity = Literal["warning", "caution", "advisory"]
@@ -256,7 +262,30 @@ class StepSpec(_Model):
     within_s: float = 5.0
     on_pass_goto: int | None = None
     on_fail_goto: int | None = None
+    hold_through_warning: bool = False  # a wait that finishes anyway; see below
     note: str | None = None
+
+    @property
+    def placeholders(self) -> set[str]:
+        fields = (self.scl, self.note, self.expect_text, self.expect_telemetry)
+        return {m.group(1) for f in fields if f is not None for m in PLACEHOLDER.finditer(f)}
+
+    def resolve(self, values: Mapping[str, str]) -> StepSpec:
+        """Fill this step's placeholders from a target (schema-validated total)."""
+        if not values:
+            return self
+
+        def fill(text: str | None) -> str | None:
+            return None if text is None else PLACEHOLDER.sub(lambda m: values[m.group(1)], text)
+
+        return self.model_copy(
+            update={
+                "scl": fill(self.scl),
+                "note": fill(self.note),
+                "expect_text": fill(self.expect_text),
+                "expect_telemetry": fill(self.expect_telemetry),
+            }
+        )
 
     @model_validator(mode="after")
     def _check_action(self) -> StepSpec:
@@ -277,7 +306,22 @@ class StepSpec(_Model):
             self.expect_telemetry is None and self.expect_text is None
         ):
             raise ValueError("branch targets require an expectation (telemetry or text)")
+        if self.hold_through_warning and self.wait_s is None:
+            raise ValueError("hold_through_warning applies to a wait step")
         return self
+
+
+class TargetSpec(_Model):
+    """One position a targeted task can be run at (data-model.md, procedure/1).
+
+    A task written for one terminal is written for every identical terminal;
+    the target supplies what differs. Ordered, because the first target is the
+    runner's default and the printed variant, and a default that depended on
+    mapping order would be a determinism bug with a content author's name on it.
+    """
+
+    name: str
+    values: dict[str, str]
 
 
 class ProcedureSpec(_Model):
@@ -289,6 +333,44 @@ class ProcedureSpec(_Model):
     manual_ref: str  # e.g. "SOM 24-30-01"
     ship: str  # pack-qualified ship id it is written against
     steps: list[StepSpec]
+    targets: list[TargetSpec] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_targets(self) -> ProcedureSpec:
+        needed: set[str] = set()
+        for step in self.steps:
+            needed |= step.placeholders
+        if not self.targets:
+            if needed:
+                raise ValueError(f"placeholders with no targets: {sorted(needed)}")
+            return self
+        names = [t.name for t in self.targets]
+        if len(set(names)) != len(names):
+            raise ValueError("target names must be unique")
+        for target in self.targets:
+            supplied = set(target.values)
+            if missing := needed - supplied:
+                raise ValueError(f"target {target.name!r} defines no {sorted(missing)}")
+            if unused := supplied - needed:
+                raise ValueError(f"target {target.name!r} supplies unused {sorted(unused)}")
+        return self
+
+    def target_values(self, name: str | None = None) -> dict[str, str]:
+        """Substitutions for ``name``, or for the default (first) target."""
+        if not self.targets:
+            if name is not None:
+                raise KeyError(f"{self.id}: no targets, cannot select {name!r}")
+            return {}
+        if name is None:
+            return dict(self.targets[0].values)
+        for target in self.targets:
+            if target.name == name:
+                return dict(target.values)
+        raise KeyError(f"{self.id}: unknown target {name!r}")
+
+    def target_names(self) -> list[str]:
+        """Every target in order; ``[None]``-equivalent when untargeted."""
+        return [t.name for t in self.targets]
 
     @model_validator(mode="after")
     def _check_step_numbers(self) -> ProcedureSpec:
