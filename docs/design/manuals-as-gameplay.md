@@ -42,6 +42,15 @@ spec: steps, expected indications, branch conditions) rendered into the manual a
 checklists — and executed headlessly in CI by the procedure runner. **The manual is the
 test suite.** See ADR-0005.
 
+A third class follows from the second: **a task with targets is printed once and run many
+times** (M2 increment 8). MAINT 42-110-001 is printed for one terminal, with a NOTE naming
+the others and exactly what differs — which is how real task cards read — while CI executes
+it against every target in turn. Printing all variants would be a worse manual, not a more
+honest one; printing one and testing only that one would be the lie. And because the page
+and the procedure are now two artifacts that can drift, the printed step numbers are
+checked against the procedure they claim to be (`tools/check_manual_steps.py`, in the fast
+gate): a page that renumbers its own checklist fails the build.
+
 ## In-game reader
 
 - Full-text search, chapter tree, cross-reference links (`SOM 24-30-01` is a link

@@ -56,9 +56,23 @@ against the referenced ship state:
 - QRH abnormals run against their triggering fault: stabilization criteria must hold.
 - FIM tasks run against each fault they claim to isolate: verdict must be correct.
 - MEL (O)/(M) procedures must be executable in their deferral configurations.
+- A procedure with `targets` is run **once per target** (M2 increment 8) — a task card
+  that claims to cover RT 5 and RT 12 is executed at both.
 
 **A manual page whose procedure fails is a build failure.** This is Manual-Driven
 Development's enforcement arm (ADR-0005): the binder ships true or nothing ships.
+
+**Printed step numbers are checked against their procedure** (`tools/check_manual_steps.py`,
+run by `make check`). The rule is the one the manuals already follow: *the card prints the
+walk, and the verdict steps are prose.* A fenced block immediately following a line of the
+form ``Execute per checklist `<id>`:`` must carry that procedure's step numbers 1..K in
+order, and every step past K must be a verdict step (`on_pass_goto: 0`). Blocks without
+that claim line are not checked — FIM trees print section-local numbering in their worked
+examples, and a gate that forced those to match would be enforcing a rule the manuals do
+not follow. The narrow rule still fails the drift that actually happens: a step inserted in
+the YAML shifts a live step into the unprinted tail, where it does not belong. It found one
+real case the day it was written (FIM 42-11 printed a three-command feed cycle as one
+numbered line, so the card's "step 3" and the FDR's "step 3" were different acts).
 
 ### 7. Perf benchmarks (`tests/perf/`)
 pytest-benchmark against kernel budgets (see kernel spec). Informational at M1, gating

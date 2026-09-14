@@ -1,6 +1,6 @@
 # SCL — Ship Command Language
 
-Status: Draft v0.2 · Last updated: 2026-07-14 · Owner: design+engineering
+Status: Draft v0.3 · Last updated: 2026-09-14 · Owner: design+engineering
 Related: [ui-presentation.md](ui-presentation.md),
 [../engineering/architecture.md](../engineering/architecture.md)
 
@@ -72,6 +72,29 @@ grammar that bypasses instrumentation (dev builds have a separate, visually loud
   error injection). The CI procedure runner is this exact machinery, headless — the
   manual-conformance test *is* the crew execution path (one implementation, three users:
   player, crew AI, CI).
+
+### A timed wait is a watch, not a sleep (M2 increment 8)
+
+**A checklist that says "wait 60 s" means "watch for 60 s".** A crew member holding a
+stopwatch does not stop being a crew member: if a warning lights at twelve seconds they
+stop the clock and work the warning. The runner does the same. A `wait` step ends early
+the moment an annunciation at **warning** severity goes *new* during it, and reports what
+interrupted it and how much of the wait was left. The step does not fail — being
+interrupted is not an error, it is the ship talking — but the interruption is in the step
+result, in the FDR, and in front of the player before the next step is offered.
+
+Caution-severity onsets do not interrupt. That is the same split the panel draws
+(ata-31-indicating.md §2): warning means *now*, caution means *when you can*, and a
+checklist that stopped for every caution would never finish a cold start. Nor does a lamp
+that was already lit and merely stayed lit — the runner reacts to exactly the bit the
+flashing master reacts to, `is_new`, so acknowledging a warning and resuming the checklist
+does what the crew expects, and a *second* onset of the same lamp interrupts again.
+
+A step may opt out with `hold_through_warning: true`, for the handful of waits where
+stopping is the wrong act (a capacitor bleed-down before touching hardware finishes even
+if the ship is shouting, because walking away mid-bleed is how people get hurt). Opting
+out is per step, spelled in the procedure, and printed in the manual as a NOTE — never a
+default and never global.
 
 ## Journal & replay
 

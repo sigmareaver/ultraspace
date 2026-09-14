@@ -1,6 +1,6 @@
 # ATA 42 — Avionics & Data
 
-Status: Draft v0.8 (M2 increments 1–7 implementation contract) · Last updated: 2026-09-13 · Owner: design+engineering
+Status: Draft v0.9 (M2 increments 1–8 implementation contract) · Last updated: 2026-09-14 · Owner: design+engineering
 Related: [../ship-systems.md](../ship-systems.md), [../simulation-depth.md](../simulation-depth.md),
 [../failure-and-repair.md](../failure-and-repair.md), [ata-24-eps.md](ata-24-eps.md),
 [../../engineering/data-model.md](../../engineering/data-model.md)
@@ -165,6 +165,33 @@ intra-tick bus physics at L1 (that is what L2 is for, later M2).
   A **stub short is contained**: transformer coupling (the 1553B-preferred
   stubbing, §6) isolates the fault to the stub and its terminal — one RT
   dark, the bus untouched.
+
+- **Zeroing the evidence (increment 8).** The per-RT totals are monotone in
+  flight, and there is exactly one way to move them: `data.db.a zero --confirm`
+  — a maintenance act performed *on the analyzer*, not a system reset. It zeros
+  every per-RT total on that bus, records the totals it discarded to the FDR,
+  and touches nothing else: not the consecutive-timeout counters, not a FAILED
+  declaration, not a fault, not a lamp. The verb is `zero` rather than `clear`
+  or `reset` because the ship already has both of those words doing other work
+  (a breaker resets; a fault clears), and a maintenance verb that sounds like a
+  repair verb will eventually be typed by someone who wanted a repair.
+  `--confirm` because afterwards the evidence is gone — SOM 42-30-01 closes on
+  "errors 0", and a crew that zeroes before reading has answered the question by
+  erasing it. The manual says that in those words, above the step.
+- **What the ship knows vs. what the controller saw (increment 8).** The BC's
+  table answers *for the BC*: a terminal that does not reply is `NO RESPONSE`,
+  never a root cause (increment 7, and unchanged). The `data read` summary is
+  not the BC — it is the ship's own page, and the ship knows two things the
+  controller cannot: which feeder breaker is open, and which positions
+  maintenance left empty. So the summary lists every terminal the bus has
+  declared FAILED and annotates it `SHED (cb.a2 open)` or
+  `NOT FITTED (position open since MET 0:09:51)` where either holds, and leaves
+  it bare where neither does. Both annotations are facts the crew could read for
+  themselves at another address; the summary saves the walk, it does not invent
+  knowledge. The feeder breaker is found by a blueprint walk at assembly — the
+  same upstream walk the WDM feeder trees are generated from — so a rewired ship
+  cannot print a stale breaker id. A bare `NO RESPONSE` in this list therefore
+  carries real information: *the ship has no innocent explanation for this one.*
 
 **Extension points (specified, not built):** retries, message payloads
 (sensor transport), DB-B failover, BC self-test/fault modes, missing/
@@ -352,7 +379,12 @@ increment. BC fault modes: the BC/firmware increment.
 - **SOM 42-00-00** Theory of data operations (topology, termination,
   coupling culture, and DMM practice added at increment 3; sensor transport
   and the reading of age added at increment 4).
-- **SOM 42-30-01** *Data Bus Checkout* (executable; conformance).
+- **SOM 42-30-01** *Data Bus Checkout* (executable; conformance). Gains the
+  post-maintenance close-out at increment 8: read the counters, then zero them,
+  then run the bus long enough to prove they stay zero. Before `zero` existed
+  the close-out was unreachable after any casualty — the totals never rewind,
+  so a bus that had ever had a bad day could not pass its own checkout. That was
+  a real defect found in play, not a wish.
 - **FIM 42-11** *Data Bus Degraded* (executable): the U4 jam tree —
   all-dark → sequential power-cycling → the bus recovers when the babbling
   terminal goes dark. Its boundaries now hand off to FIM 42-12.
@@ -393,24 +425,29 @@ increment. BC fault modes: the BC/firmware increment.
   close with the SOM 42-30-01 functional test — because a swap is not
   finished until an instrument says so. Refuses without a spare and cites the
   IPC sheet, which is generated from the same blueprint the stores come from.
+  At increment 8 it becomes a *targeted* task: printed for RT 12, executed by
+  conformance at RT 12 and RT 5, with the address the only thing the target
+  varies — all three breakers are opened either way, because the note that says
+  "the whole bus goes down" is the point of the task, not an inconvenience.
 - **MEL 42-01** (DB-A deferral): with the DB-B / fault-scheduling increments.
 
 ## 8. SCL address map (TB-1)
 
 ```
 data                     read   (system summary: each bus with BC state)
-data.db.a                read   (BC bus table — analyzer v1)
+data.db.a                read | zero --confirm   (BC bus table — analyzer v1)
 data.seu                 read   (ambient particle flux — the environment monitor)
 data.db.a.rt.<n>         records | remove | install   (the LRU; increment 7)
 maint                    read   (stores and open removals — MAINT v1)
 maint.stores             read   (the same sheet at its own address)
 ```
 
-`records` is answered at *every* device address: it is the unit's nameplate
+`zero` is the BC's first and only command verb (increment 8), and it commands
+the analyzer, not the schedule. `records` is answered at *every* device address: it is the unit's nameplate
 and logbook page, not a system view (failure-and-repair.md, MAINT v1). RTs
 gained the rest of that surface at increment 7; before then they were boxes
-reached only through their power breakers. The BC still has no verbs beyond
-`read` — schedule control is firmware, not panel.
+reached only through their power breakers. Schedule control is still firmware, not panel: there is no
+verb that starts, stops or reorders a minor frame.
 
 ## 9. Content-schema notes (increments 1–7)
 
@@ -437,6 +474,10 @@ reached only through their power breakers. The BC still has no verbs beyond
   part number in blueprint order, spares continuing the sequence — so fitting
   hardware costs no extra authoring and the IPC sheet is generated from the
   same source the stores come from.
+- Procedure `targets` (increment 8, schema in data-model.md): MAINT 42-110-001
+  carries `[{name: rt.12, values: {rt: rt.12}}, {name: rt.5, values: {rt: rt.5}}]`
+  and substitutes `{rt}` into its addresses. The printed page is the first
+  target; conformance runs both.
 - Validation: exactly one BC per bus; RT addresses unique per bus; harness
   `ends` resolve to bus members; every bus member is reachable from the BC
   through declared segments at load time (a dangling harness is a build
@@ -449,6 +490,14 @@ reached only through their power breakers. The BC still has no verbs beyond
 
 ## 10. Test plan
 
+- **Unit (increment 8):** `zero` needs `--confirm`, zeros every RT total on its
+  own bus and no other bus, leaves consecutive-timeout counters and FAILED
+  declarations standing, and writes the discarded totals to the FDR; the `data
+  read` summary annotates a shed terminal with its own feeder breaker and an
+  empty position with the tick it was emptied, and annotates neither when the
+  terminal is simply dark; a `wait` step ends early on a new warning and reports
+  the remaining time, does not end early on a caution, and does not end early
+  under `hold_through_warning`.
 - **Unit (increment 7):** serials are assigned in blueprint order and spares
   continue the sequence; an empty position stamps no conductance, answers no
   poll, and cannot jam; `install` consumes exactly one spare and refuses on an

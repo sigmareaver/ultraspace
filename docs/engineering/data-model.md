@@ -73,6 +73,17 @@ indication (telemetry predicate with tolerance + timeout), on-fail branch (goto 
 abort ref / QRH ref), warnings/notes (rendered into manual). Executable by the runner
 (player-interactive, crew-autonomous, CI-headless — same engine, see command-language).
 
+*Targets (M2 increment 8).* A task written for one position is a task written for every
+identical position: MAINT 42-110-001 replaces *a* remote terminal, and all that changes
+between RT 5 and RT 12 is an address and a breaker. `targets` is an **ordered list** of
+named substitutions (`{name, values: {...}}`); `{placeholder}` markers in a step's `scl`,
+`note`, `expect_text` and `expect_telemetry` are filled from the selected target before
+the step runs. A list rather than a mapping because the runner's default is the *first*
+target, and a default that depends on dict ordering is a determinism bug waiting for a
+content author. The loader rejects a placeholder no target defines and a target key no
+step uses; conformance runs every target, so a task that works at RT 12 and not at RT 5
+is a build failure, not a surprise in the field.
+
 ### Scenario (`scenario/1`)
 Ship + wear/config deltas, environment timeline, fault schedule (device, mode, tick or
 condition), crew roster/state, world state (traffic density, station config, broadcast
