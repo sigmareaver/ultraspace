@@ -131,7 +131,7 @@ devices:
   # Remote current transducers (ata-42-data.md §4): sited at their loads and
   # reported through the terminal in that bay, so a dark RT sends the reading
   # stale while the load itself keeps drawing. The bus and battery instruments
-  # stay panel-wired — SOM 24-30-01 step 1 reads BUS E with the ship dark.
+  # stay panel-wired — SOM 24-30-01 step 2 reads BUS E with the ship dark.
   - id: mt.load.cabin.i
     part: core:xducer-i
     measures: load.cabin
@@ -154,18 +154,30 @@ annunciators:
   - id: ann.bus.e.uv
     telemetry: mt.bus.e.v
     message: "BUS E UNDERVOLT"
+    severity: warning        # the essential bus: nothing downstream survives it
     low: 24.0
     arm_above: 25.0   # quiet while cold & dark; arms once the bus first comes up
   - id: ann.bus.a.uv
     telemetry: mt.bus.a.v
     message: "BUS A UNDERVOLT"
+    severity: caution        # non-essential distribution: real, and you have time
     low: 24.0
     arm_above: 25.0
   - id: ann.db.a.degraded
     telemetry: bc.a          # BC health fraction (silent while BC dark)
     message: "DATA BUS A DEGRADED"
+    severity: caution
     low: 1.0                 # fires when any RT is declared FAILED
+  # Graded annunciation (ata-31-indicating.md §4): DEGRADED cannot fire twice,
+  # so the loss of the *last* terminal needs its own lamp at its own level —
+  # the 2026-09-13 playtest finding, in content.
+  - id: ann.db.a.failed
+    telemetry: bc.a
+    message: "DATA BUS A FAILED"
+    severity: warning
+    low: 0.01                # fires when no terminal answers at all
   - id: ann.seu.hazard
     telemetry: mt.seu.flux     # ambient particle flux, p/cm2s
     message: "SEU HAZARD"
+    severity: caution          # act soon: shed what you can before it breaks something
     high: 100.0                # no arm gate: a high reading is never spurious

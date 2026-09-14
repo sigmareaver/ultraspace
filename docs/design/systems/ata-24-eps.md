@@ -72,7 +72,7 @@ surface *telemetry only*, with provenance and age. Data-bus transport is stubbed
 (direct wiring fiction, honest per TB-1's simplicity); the DB-A/RT chain lands at M2
 increment 4 (ata-42-data.md §4) for **remote** transducers only — a transducer with
 `carried_by` publishes solely in ticks where its carrier RT answered. Bus meters and
-battery instruments stay panel-wired, because SOM 24-30-01 step 1 has to read BUS E
+battery instruments stay panel-wired, because SOM 24-30-01 step 2 has to read BUS E
 with the ship cold and dark, before any data bus exists to carry it.
 
 Breaker/contactor positions are readable as *physical observation* (panel inspection),

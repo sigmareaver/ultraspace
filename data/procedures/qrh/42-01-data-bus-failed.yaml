@@ -1,0 +1,36 @@
+schema: procedure/1
+id: qrh-42-01
+title: "DATA BUS A FAILED"
+manual_ref: "QRH 42-01"
+ship: core:tb-1
+# Stabilization, not diagnosis (ata-31-indicating.md §7). Five steps, all of
+# which must be doable by someone who has been awake for nineteen hours, and
+# the last of which is somebody else's page.
+steps:
+  - step: 1
+    scl: "sys.annunciator ack"
+    note: "The lamps stay lit; the masters go steady. An acknowledged panel is the only panel that can tell you about the next thing."
+  - step: 2
+    scl: "data.db.a read"
+    expect_text: "ON AIR"
+    on_pass_goto: 3
+    on_fail_goto: 7
+    note: "A failed bus and a dark controller sound identical at the panel and are not the same work."
+  - step: 3
+    wait_s: 2.0
+    note: "Let the carried readings age past the staleness horizon so the panel can mark them."
+  - step: 4
+    scl: "eps read"
+    expect_text: "? STALE"
+    note: "Every instrument carried by a terminal on this bus is frozen at its last honest value. Disregard those lines; the equipment they watch is unaffected."
+  - step: 5
+    scl: "data.seu read"
+    note: "Note the flux now. It changes nothing you are about to do and everything about what the log means (FIM 42-11 §4)."
+  - step: 6
+    scl: "data.db.a read"
+    expect_text: "NO RESPONSE"
+    on_pass_goto: 0
+    note: "EXIT: the jam signature is confirmed. Go to FIM 42-11 §3 and cycle the feeds in order."
+  - step: 7
+    scl: "eps bus.e read"
+    note: "EXIT: the controller is dark, not the bus. SOM 42-00-00 §6 — find the breaker, starting at the essential bus."

@@ -27,8 +27,18 @@ EVENT_KINDS = (
 
 
 def format_event(event: Event) -> str:
-    """One-line operator rendering of an FDR event (shared with the TUI)."""
+    """One-line operator rendering of an FDR event (shared with the TUI).
+
+    An annunciation is rendered as the panel would say it — severity spelled
+    out, because the flat line client has no color and the ranking is the
+    whole point (ata-31-indicating.md §2).
+    """
     met_s = event.tick / 10
+    payload = dict(event.payload)
+    severity = payload.get("severity")
+    if isinstance(severity, str) and event.kind in ("annunciator-raise", "annunciator-clear"):
+        verb = "RAISED" if event.kind == "annunciator-raise" else "clear"
+        return f"[{met_s:8.1f}s] {severity.upper():<9} {payload['message']} {verb}"
     return f"[{met_s:8.1f}s] {event.source}: {event.kind} {dict(event.payload)}"
 
 

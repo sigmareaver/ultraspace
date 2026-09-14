@@ -108,3 +108,36 @@ def test_shedding_one_terminal_does_not_move_the_others_onset(tree: ContentTree)
     assert "rt.5" in kept, "the reference run must contain the casualty being compared"
     assert shed.get("rt.5") == kept["rt.5"]
     assert "rt.12" not in shed  # shed before the event: an unpowered board cannot latch
+
+
+def test_acknowledgement_is_a_recorded_action_that_replays(tree: ContentTree) -> None:
+    """A crew answer is journal state like any other command (ata-31 §6)."""
+
+    def digest(seed: int) -> str:
+        sim = Simulation(tree, "core:tb-1", master_seed=seed)
+        run_procedure(sim, tree.procedures["core:som-24-30-01"])
+        sim.execute("eps.bat.1.contactor", "open", set())
+        sim.step_s(3.0)  # BUS E collapses: MASTER WARNING
+        sim.execute("sys.annunciator", "ack", set())
+        sim.step(20)
+        return sim.log.digest()
+
+    assert digest(42) == digest(42)
+
+
+def test_an_unanswered_panel_reads_differently_from_an_answered_one(
+    tree: ContentTree,
+) -> None:
+    """The log can say the crew was told and did not answer — that is the point."""
+
+    def digest(*, acknowledge: bool) -> str:
+        sim = Simulation(tree, "core:tb-1", master_seed=42)
+        run_procedure(sim, tree.procedures["core:som-24-30-01"])
+        sim.execute("eps.bat.1.contactor", "open", set())
+        sim.step_s(3.0)
+        if acknowledge:
+            sim.execute("sys.annunciator", "ack", set())
+        sim.step(20)
+        return sim.log.digest()
+
+    assert digest(acknowledge=True) != digest(acknowledge=False)

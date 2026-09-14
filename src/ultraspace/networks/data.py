@@ -256,3 +256,21 @@ class DataBus:
     @property
     def degraded(self) -> bool:
         return any(rt.failed for rt in self._rts.values())
+
+    @property
+    def failed(self) -> bool:
+        """No registered terminal is answering at all.
+
+        A distinct word from `degraded`, because the annunciator panel makes
+        the same distinction and the two surfaces must not disagree in front
+        of the crew (ata-31-indicating.md §4): DATA BUS A FAILED lit over an
+        analyzer still calling the bus DEGRADED is how a player stops trusting
+        both.
+        """
+        return bool(self._rts) and all(rt.failed for rt in self._rts.values())
+
+    def state_word(self) -> str:
+        """HEALTHY | DEGRADED | FAILED — the analyzer's and the panel's word."""
+        if self.failed:
+            return "FAILED"
+        return "DEGRADED" if self.degraded else "HEALTHY"

@@ -77,8 +77,11 @@ def test_stuck_dominant_shows_the_jam_signature_not_one_dark(tree: ContentTree) 
     table = d.execute_line("data.db.a read").text
     rt_rows = [line for line in table.splitlines() if "NO RESPONSE" in line]
     assert len(rt_rows) == 2  # RT 5 and RT 12 both — the jam signature
-    assert "DEGRADED" in table
-    assert "DATA BUS A DEGRADED" in d.execute_line("eps read").text
+    # Nothing answers at all, so the analyzer and the panel both say FAILED —
+    # they must never disagree in front of the crew (ata-31-indicating.md §4).
+    assert "db.a FAILED" in table
+    panel = d.execute_line("eps read").text
+    assert "DATA BUS A FAILED" in panel and "DATA BUS A DEGRADED" in panel
 
 
 def test_power_cycling_the_babbling_terminal_restores_the_bus(tree: ContentTree) -> None:
@@ -165,7 +168,7 @@ def test_trunk_short_kills_the_bus_and_no_power_cycle_helps(tree: ContentTree) -
     for line in ("eps cb.a2 open", "eps cb.a2 close", "eps cb.e3 open", "eps cb.e3 close"):
         d.execute_line(line)
         sim.step(2)
-    assert "DEGRADED" in d.execute_line("data.db.a read").text
+    assert "db.a FAILED" in d.execute_line("data.db.a read").text
     _de_energize_db_a(d, sim)
     dmm = d.execute_line("data.db.a.j1 read").text
     assert "seg.bc-j1 (toward bc.a): 0.0 ohm" in dmm

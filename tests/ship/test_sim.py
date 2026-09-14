@@ -89,18 +89,22 @@ def test_precharge_sequence_energizes_bus_a(tb1: Simulation) -> None:
 
 
 def test_undervolt_annunciator_arms_then_raises(tb1: Simulation) -> None:
+    """Losing the essential bus is a warning, not a caution (ata-31 §2)."""
     tb1.step(1)
     tb1.execute("eps.bat.1.contactor", "close", {"confirm"})
     tb1.execute("eps.cb.e1", "close", set())
     tb1.step(20)  # bus.e ~26.7 V > 25.0: annunciator arms
-    caution_before = tb1.panel.master_caution
-    assert not caution_before
+    warning_before = tb1.panel.master_warning
+    assert not warning_before
     tb1.execute("eps.bat.1.contactor", "open", set())
     tb1.step_s(2.0)  # bus.e cap drains through avionics load, tau ~ 0.1 s
-    caution_after = tb1.panel.master_caution
-    assert caution_after
+    warning_after, new_after = tb1.panel.master_warning, tb1.panel.master_warning_new
+    assert warning_after
+    assert new_after  # nobody has acknowledged it yet
+    assert not tb1.panel.master_caution  # BUS A never came up: no caution to raise
     assert "BUS E UNDERVOLT" in tb1.panel.active_messages()
-    assert any(e.kind == "annunciator-raise" for e in tb1.log)
+    raises = [e for e in tb1.log if e.kind == "annunciator-raise"]
+    assert raises and raises[-1].payload["severity"] == "warning"
 
 
 def test_read_and_summary_are_instrument_mediated(tb1: Simulation) -> None:

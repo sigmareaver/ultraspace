@@ -51,6 +51,14 @@ _ELECTRICAL = (
 _XDUCERS = ("xducer_v", "xducer_i", "xducer_soc", "xducer_flux")
 DT_S = TICK_US / 1_000_000
 
+#: The annunciator panel's SCL address. A *fixture*, not yet a device: it has
+#: an address and verbs but no electrical ports, because the honest version
+#: needs a feed and lamps that burn out (ata-31-indicating.md §5, §9).
+ANNUNCIATOR_ADDRESS = "sys.annunciator"
+
+#: Lamp test duration: long enough to look along the row and see a dark one.
+LAMP_TEST_TICKS = 20
+
 
 class Simulation:
     def __init__(self, tree: ContentTree, ship_id: str, master_seed: int) -> None:
@@ -95,6 +103,8 @@ class Simulation:
                 self._xducers.append(spec)
             if spec.scl is not None:
                 self.address_map.setdefault(spec.scl, []).append(spec.id)
+
+        self.address_map.setdefault(ANNUNCIATOR_ADDRESS, []).append(ANNUNCIATOR_ADDRESS)
 
         for segment_spec in harness:  # segments join members, so members go first
             self._wire_harness_segment(segment_spec)
@@ -319,6 +329,8 @@ class Simulation:
     # -- command surface (used by interaction/scl) ----------------------------
 
     def execute(self, address: str, verb: str, flags: set[str]) -> CommandResult:
+        if address == ANNUNCIATOR_ADDRESS:
+            return self._annunciator_command(verb)
         device_ids = self.address_map.get(address)
         if device_ids is None:
             return refused(f"unknown address {address!r}")
@@ -350,15 +362,75 @@ class Simulation:
 
     def summary(self) -> str:
         lines = [f"{self.ship.name} — MET {self.clock.mission_elapsed_str()}"]
-        caution = self.panel.active_messages()
-        lines.append(f"MASTER CAUTION: {'ACTIVE — ' + ', '.join(caution) if caution else 'clear'}")
+        lines.extend(self._master_lines())
         lines.extend(self._read_one(t).text for t in self.telemetry.ids())
+        return "\n".join(lines)
+
+    def _master_lines(self) -> list[str]:
+        """The two master lights. The caution line always prints, lit or not.
+
+        `MASTER CAUTION: clear` is the sentence the crew has been reading since
+        M1 and it is still true; the warning line appears only when there is
+        something at that level, because a permanently displayed "no warnings"
+        is how a panel teaches people to stop looking.
+        """
+        lines = []
+        for severity, lit, new in (
+            ("WARNING", self.panel.master_warning, self.panel.master_warning_new),
+            ("CAUTION", self.panel.master_caution, self.panel.master_caution_new),
+        ):
+            messages = [
+                a.spec.message for a in self.panel.recall() if a.spec.severity.upper() == severity
+            ]
+            if not lit:
+                if severity == "CAUTION":
+                    lines.append("MASTER CAUTION: clear")
+                continue
+            mark = " (NEW)" if new else ""
+            lines.append(f"MASTER {severity}: ACTIVE{mark} — {', '.join(messages)}")
+        return lines
+
+    def _annunciator_command(self, verb: str) -> CommandResult:
+        """The panel's own verbs (ata-31-indicating.md §5)."""
+        if verb == "read":
+            return CommandResult(True, self._annunciator_summary())
+        if verb == "ack":
+            seen = self.panel.acknowledge(self.log, self.clock.tick_index)
+            if not seen:
+                return CommandResult(True, "sys.annunciator: nothing new to acknowledge")
+            return CommandResult(
+                True, f"sys.annunciator: {len(seen)} acknowledged — {', '.join(seen)}"
+            )
+        if verb == "test":
+            self.panel.lamp_test(self.log, self.clock.tick_index, LAMP_TEST_TICKS)
+            return CommandResult(
+                True, f"sys.annunciator: lamp test, all lamps lit {LAMP_TEST_TICKS * DT_S:.0f} s"
+            )
+        return refused(f"{ANNUNCIATOR_ADDRESS}: verb {verb!r} not supported (try: read, ack, test)")
+
+    def _annunciator_summary(self) -> str:
+        """The recall list, in the order the QRH says to work it (QRH 00-00 §1)."""
+        lines = [f"{self.ship.name} — ANNUNCIATORS — MET {self.clock.mission_elapsed_str()}"]
+        if self.panel.testing:
+            lines.append("PANEL TEST — every lamp lit")
+            lines.extend(f"   TEST      {a.spec.message}" for a in self.panel.annunciators)
+            return "\n".join(lines)
+        lines.extend(self._master_lines())
+        lit = self.panel.recall()
+        if not lit:
+            lines.append("(no annunciations)")
+        lines.extend(
+            f" {'!' if a.is_new else ' '} {a.spec.severity.upper():<9} {a.spec.message}"
+            for a in lit
+        )
         return "\n".join(lines)
 
     def summarize(self, root: str) -> str:
         """System-level `read` summary for an address root (SCL dispatcher)."""
         if root == "data":
             return self._data_summary()
+        if root == "sys":
+            return self._annunciator_summary()
         return self.summary()  # eps is the M1 default summary
 
     def _data_summary(self) -> str:
@@ -370,7 +442,7 @@ class Simulation:
                 continue
             total = len(bus.rt_addresses())
             healthy = round(bus.health_frac() * total)
-            state = "DEGRADED" if bus.degraded else "HEALTHY"
+            state = bus.state_word()
             # "not declared FAILED", not "answered the last poll": the count
             # tracks the BC's declaration (SOM 42-00-00 §3 — three consecutive
             # misses), so a terminal that just started missing still counts

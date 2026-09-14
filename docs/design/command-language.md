@@ -86,7 +86,7 @@ reporting (attach journal segment to reports).
 > eps read --summary
 EPS: COLD. Batteries: BAT-1 76% 25.1V, BAT-2 74% 25.0V. All buses de-energized.
 > eps bat.1.contactor close --confirm
-BAT-1 contactor closed. ESSENTIAL BUS E: 25.1 V.        [SOM 24-30-01 step 4]
+BAT-1 contactor closed. ESSENTIAL BUS E: 25.1 V.        [SOM 24-30-01 step 5]
 > eps bus.a.precharge start
 REFUSED: interlock BUS-A-TIE-OPEN not satisfied (tie is closed). See SOM 24-30-01 note 2.
 > eps bus.a.tie open

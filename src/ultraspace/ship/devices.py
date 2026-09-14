@@ -436,7 +436,7 @@ class BusController(DataDevice):
     def observe(self) -> str:
         if not self.energized:
             return f"{self.id}: OFF (bus controller unpowered)"
-        state = "DEGRADED" if self.bus.degraded else "HEALTHY"
+        state = self.bus.state_word()
         return f"{self.id}: ON AIR — {self.bus.id} {state}"
 
     def execute(self, verb: str, flags: set[str]) -> CommandResult:

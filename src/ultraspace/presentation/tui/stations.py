@@ -22,6 +22,7 @@ from ultraspace.presentation.tui.palette import (
     OFF_STYLE,
     STALE_GLYPH,
     STALE_STYLE,
+    WARNING_STYLE,
     state_annotation,
 )
 from ultraspace.ship import Simulation
@@ -158,18 +159,35 @@ def _join(sections: list[list[Text]]) -> Text:
     return out
 
 
-def render_eps(sim: Simulation) -> Text:
-    """The SYS/EPS station: caution line, measurements, panel, feeder trees."""
-    caution = sim.panel.active_messages()
-    states = _device_states(sim)
-    if caution:
-        caution_line = Text(
-            f"{CAUTION_GLYPH} MASTER CAUTION: ACTIVE — {', '.join(caution)}", style=CAUTION_STYLE
+def _master_lines(sim: Simulation) -> list[Text]:
+    """One line per lit master, ranked, plus the standing caution line.
+
+    `!` marks an unacknowledged onset — redundant with the reverse style, so
+    the ranking survives a monochrome terminal (ata-31-indicating.md §2).
+    """
+    lines: list[Text] = []
+    for severity, style in (("warning", WARNING_STYLE), ("caution", CAUTION_STYLE)):
+        lamps = [a for a in sim.panel.recall() if a.spec.severity == severity]
+        if not lamps:
+            continue
+        mark = "!" if any(a.is_new for a in lamps) else " "
+        messages = ", ".join(a.spec.message for a in lamps)
+        lines.append(
+            Text(
+                f"{mark}{CAUTION_GLYPH} MASTER {severity.upper()}: ACTIVE — {messages}",
+                style=style,
+            )
         )
-    else:
-        caution_line = Text("MASTER CAUTION: clear", style=OFF_STYLE)
+    if not sim.panel.master_caution:
+        lines.append(Text("MASTER CAUTION: clear", style=OFF_STYLE))
+    return lines
+
+
+def render_eps(sim: Simulation) -> Text:
+    """The SYS/EPS station: master lights, measurements, panel, feeder trees."""
+    states = _device_states(sim)
     sections = [
-        [caution_line],
+        _master_lines(sim),
         _measurement_lines(sim),
         _panel_lines(sim, states),
         _feeder_tree_lines(sim, states),

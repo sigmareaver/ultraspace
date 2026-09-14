@@ -15,6 +15,7 @@ __all__ = [
     "HAZARD_MODES",
     "REQUIRED_PARAMS",
     "REQUIRED_PORTS",
+    "SEVERITY_RANK",
     "AnnunciatorSpec",
     "DataBusSpec",
     "DeviceSpec",
@@ -25,9 +26,17 @@ __all__ = [
     "ProcedureSpec",
     "ScenarioSpec",
     "ScheduledFaultSpec",
+    "Severity",
     "ShipSpec",
     "StepSpec",
 ]
+
+Severity = Literal["warning", "caution", "advisory"]
+
+#: Recall order (ata-31-indicating.md §5): severity first, and within a
+#: severity new before acknowledged. Never recency — the newest problem is
+#: very often a consequence of the worst one.
+SEVERITY_RANK: dict[str, int] = {"warning": 0, "caution": 1, "advisory": 2}
 
 Behavior = Literal[
     "battery",
@@ -184,6 +193,10 @@ class AnnunciatorSpec(_Model):
     id: str
     telemetry: str  # transducer device id
     message: str
+    #: warning | caution | advisory (ata-31-indicating.md §2). Defaults to
+    #: caution: the level that means "real, and you have time to think".
+    #: A chapter that declares everything a warning has declared nothing.
+    severity: Severity = "caution"
     low: float | None = None
     high: float | None = None
     arm_above: float | None = None  # arms after value first exceeds this (cold&dark quiet)

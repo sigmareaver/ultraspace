@@ -12,7 +12,8 @@ two disagree, one of them is wrong — fix deliberately, not silently.
 | advisory — transition | ●     | cyan         | precharge CHARGING |
 | off / de-energized    | ·     | dim          | OPEN/IDLE states, idle lamps, clear caution |
 | stale / no report     | ?     | dim          | aged telemetry, unreported bus voltage |
-| warning — immediate   | ▲     | red (reserved; severity lands with the QRH at M2) |
+| warning — immediate   | ▲     | red          | warning-severity lamp (ata-31-indicating.md §2) |
+| new / unacknowledged  | !     | reverse       | a lamp raised and not yet acknowledged |
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ __all__ = [
     "OFF_STYLE",
     "STALE_GLYPH",
     "STALE_STYLE",
+    "WARNING_LAMP_STYLE",
     "WARNING_STYLE",
     "state_annotation",
 ]
@@ -41,7 +43,8 @@ ADVISORY_STYLE = "cyan"
 OFF_STYLE = "dim"
 STALE_STYLE = "dim"
 LAMP_ACTIVE_STYLE = "bold black on color(214)"  # backlit caution lamp
-WARNING_STYLE = "bold red"  # reserved: nothing ships warning-level at M1
+WARNING_STYLE = "bold red"
+WARNING_LAMP_STYLE = "bold white on red"  # backlit warning lamp
 
 # Panel-observed state word -> (glyph prefix, style). Words not listed render
 # plain: CLOSED/COMPLETE are the normal end states, not things to notice.
