@@ -1,6 +1,6 @@
 # ATA 42 — Avionics & Data
 
-Status: Draft v0.7 (M2 increments 1–6 implementation contract) · Last updated: 2026-09-13 · Owner: design+engineering
+Status: Draft v0.8 (M2 increments 1–7 implementation contract) · Last updated: 2026-09-13 · Owner: design+engineering
 Related: [../ship-systems.md](../ship-systems.md), [../simulation-depth.md](../simulation-depth.md),
 [../failure-and-repair.md](../failure-and-repair.md), [ata-24-eps.md](ata-24-eps.md),
 [../../engineering/data-model.md](../../engineering/data-model.md)
@@ -326,15 +326,26 @@ Two consequences the manuals have to teach, because both are playable:
 - **The flux reading is the only warning there is.** It arrives before the
   casualty, not with it, and nothing else on the ship will mention the event.
 
-**Repair (field form; MAINT attaches cost later).** `repair` on a segment,
-coupler, or RT (module) replaces the part — whatever its state — FDR-logged
-(with `fault_found` for review), interlocked the same way: you do not
-splice a live bus. It reports the same text either way, because refusing
-"nothing to repair" on a sound part would hand the player a verdict no
-instrument gave them (No God View). Replacing a good run is a wasted part;
-the bus table after re-energizing is the only verdict. Intermittents and
-condition-triggered faults: a later increment. BC fault modes: the
-BC/firmware increment.
+**Repair and replacement (increment 7).** Wiring is *repaired*; boxes are
+*swapped*. `repair` on a segment or coupler splices the run — whatever its
+state — FDR-logged (with `fault_found` for review), interlocked the same way:
+you do not splice a live bus. It reports the same text either way, because
+refusing "nothing to repair" on a sound part would hand the player a verdict
+no instrument gave them (No God View). A terminal is a line-replaceable unit
+and answers `remove` / `install` instead, against finite ship's stores
+(failure-and-repair.md, MAINT v1); the same interlock applies, and the same
+silence about what was wrong with the box. Replacing a good run or a good
+board is a wasted part; the bus table after re-energizing is the only verdict.
+
+**An empty terminal position is not a bus state.** A removed RT draws no
+current, answers no poll, and cannot jam the bus — so pulling a babbling
+terminal cures DB-A on the spot, and costs its function. The bus table still
+reads `NO RESPONSE` against it: the controller cannot see an empty rack, and
+the analyzer surface stays the BC's own view (§3). `NOT FITTED` is what the
+crew sees when they look at the position itself (`data.db.a.rt.12 read`) and on
+the MAINT stores sheet as an open removal. The distinction is the ship's
+paperwork, not the bus's. Intermittents and condition-triggered faults: a later
+increment. BC fault modes: the BC/firmware increment.
 
 ## 7. Procedures (manual set, staged)
 
@@ -372,8 +383,17 @@ BC/firmware increment.
   healthy, reading still frozen). It owns no repair verb — it is a routing
   section, which is why it is numbered outside the 42-11/-12/-13 isolation
   block.
-- **QRH** data-bus loss, **MEL 42-01** (DB-A deferral): with the DB-B /
-  fault-scheduling increments.
+- **QRH 42-01** *Data Bus Failed* (executable, increment 6): stabilization
+  only — acknowledge, establish which of the two identical-sounding cases
+  this is (bus failed vs. controller dark), and hand off. It repairs nothing
+  on purpose.
+- **MAINT 42-110-001** *Terminal Module — Removal and Installation*
+  (executable, increment 7): the verdict's other half. De-energize, `remove`
+  the convicted board, draw a spare from stores, `install`, re-energize, and
+  close with the SOM 42-30-01 functional test — because a swap is not
+  finished until an instrument says so. Refuses without a spare and cites the
+  IPC sheet, which is generated from the same blueprint the stores come from.
+- **MEL 42-01** (DB-A deferral): with the DB-B / fault-scheduling increments.
 
 ## 8. SCL address map (TB-1)
 
@@ -381,13 +401,18 @@ BC/firmware increment.
 data                     read   (system summary: each bus with BC state)
 data.db.a                read   (BC bus table — analyzer v1)
 data.seu                 read   (ambient particle flux — the environment monitor)
+data.db.a.rt.<n>         records | remove | install   (the LRU; increment 7)
+maint                    read   (stores and open removals — MAINT v1)
+maint.stores             read   (the same sheet at its own address)
 ```
 
-RTs have no operator address at increment 1: they are boxes, reached through
-their power breakers (and, at L2, their test points). The BC has no verbs
-beyond `read` — schedule control is firmware, not panel.
+`records` is answered at *every* device address: it is the unit's nameplate
+and logbook page, not a system view (failure-and-repair.md, MAINT v1). RTs
+gained the rest of that surface at increment 7; before then they were boxes
+reached only through their power breakers. The BC still has no verbs beyond
+`read` — schedule control is firmware, not panel.
 
-## 9. Content-schema notes (increments 1–4)
+## 9. Content-schema notes (increments 1–7)
 
 - Part behaviors: `bc`, `rt` (params `r_ohm` input load, `min_v` power
   gate; ports `pos`/`neg); `junction` (bus coupler; no electrical load) and
@@ -407,6 +432,11 @@ beyond `read` — schedule control is firmware, not panel.
 - Transducers may declare `carried_by: <rt device id>` (increment 4). Absent
   = panel-wired, the M1 form and still the default. Present = the sample is
   published only in ticks where that RT answered its poll.
+- Blueprint `spares: [{part: core:rt-1553, qty: 2}]` (increment 7): the ship's
+  finite stores. Unit serials are *derived*, not authored — `<P/N>/<NNNN>` per
+  part number in blueprint order, spares continuing the sequence — so fitting
+  hardware costs no extra authoring and the IPC sheet is generated from the
+  same source the stores come from.
 - Validation: exactly one BC per bus; RT addresses unique per bus; harness
   `ends` resolve to bus members; every bus member is reachable from the BC
   through declared segments at load time (a dangling harness is a build
@@ -419,6 +449,11 @@ beyond `read` — schedule control is firmware, not panel.
 
 ## 10. Test plan
 
+- **Unit (increment 7):** serials are assigned in blueprint order and spares
+  continue the sequence; an empty position stamps no conductance, answers no
+  poll, and cannot jam; `install` consumes exactly one spare and refuses on an
+  occupied position or an empty shelf; powered hours accrue only while the
+  rail is up; a removed unit keeps the fault that came out with it.
 - **Unit:** schedule execution; timeout → FAILED → health transitions;
   recovery clears; error counter monotonicity; unpowered BC publishes
   nothing. Stuck-dominant jams while energized and clears on power removal.
@@ -453,6 +488,11 @@ beyond `read` — schedule control is firmware, not panel.
   Increment 5: hazard arithmetic per factor; an unpowered device never
   latches up; a part with no `hazard` block never fails on its own; the
   scenario timeline interpolates and the world writes what the ship reads.
+  Increment 7: MAINT 42-110-001 headless — the convicted board comes out, a
+  spare goes in, and the bus passes SOM 42-30-01 afterwards; the task refuses
+  on a live bus and refuses again when stores are empty. The whole U4 vignette
+  runs end to end as one casualty test: annunciator → QRH 42-01 → FIM 42-11 →
+  swap → functional test, with nothing read that an instrument did not say.
 - **Determinism (increment 5):** `fault/<device>/<mode>` is drawn exactly once
   per tick per pair, unconditionally — asserted by replaying the same scenario
   with a terminal shed and confirming the *other* terminal's onset tick is

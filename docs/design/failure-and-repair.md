@@ -1,6 +1,6 @@
 # Failure & Repair Model
 
-Status: Draft v0.3 (stress model v1 implementation contract) · Last updated: 2026-09-13 · Owner: design+engineering
+Status: Draft v0.4 (MAINT v1 implementation contract) · Last updated: 2026-09-13 · Owner: design+engineering
 Related: [simulation-depth.md](simulation-depth.md), [manuals-as-gameplay.md](manuals-as-gameplay.md),
 [../engineering/testing.md](../engineering/testing.md)
 
@@ -152,12 +152,84 @@ like the real documents.
 substitution tables in the IPC ("42-118-002 supersedes -001; -001 usable with restriction
 R-4"). Buying the right spares kit for your patchwork ship is campaign strategy.
 
+### MAINT v1 (M2 increment 7 — implementation contract)
+
+v1 implements one row of that table — `swap lru` — for one class of hardware
+(ATA 42 remote terminals), plus the bookkeeping every other row will need. It
+is the missing half of the U4 story: the FIM already names a suspect and the
+QRH already stabilizes, but the only way to act on a verdict was a `repair`
+verb that conjured a new module out of nothing.
+
+**A swap is two verbs, because the interesting state is the empty position.**
+SCL has no multi-word verbs, so `swap lru` is `remove` and `install`. That is
+not just grammar. An atomic swap can never be interrupted, deferred, botched,
+or flown in — and a ship flying with a position open is a real situation with
+a real cost. Removal and installation are separately refusable, separately
+logged, and separately survivable.
+
+**An empty position is empty.** A removed unit draws no current, answers no
+poll, and cannot jam anything. So pulling a babbling terminal cures the bus on
+the spot — a legitimate, discoverable repair, and a trap: the bus is healthy
+and the function is gone. The system display is *not* told about it. A
+controller cannot see an empty rack; it sees a terminal that stopped
+answering, and it says `NO RESPONSE` exactly as it would for a dead board. What
+separates the two is the ship's own maintenance record — `NOT FITTED` appears
+where the crew looks at the position, and on the stores sheet as an open
+removal. Forgetting what you pulled is allowed to cost you, which is the whole
+lesson of QRH 00-00 §3.
+
+**Every fitted box is a serialized unit.** Identity is `<part number>/<NNNN>`
+— `42-110-001/0003` — assigned per part number in blueprint order, with spares
+continuing the same sequence (serials are issued at manufacture, not at
+fitting). Deriving identity means no authoring burden and no content churn, at
+one known cost: inserting a device earlier in a blueprint renumbers the ones
+after it, which "IDs are forever" (ADR-0001) does not permit for saved
+campaigns. The escape hatch is already shaped — blueprints gain an optional
+authored serial and the derivation becomes the fallback — and it lands when
+persistence does, not before.
+
+**Stores are finite and belong to the ship.** A blueprint declares `spares:`
+by part and quantity; `install` consumes the lowest-serial spare whose part
+matches the position exactly. Effectivity in v1 *is* that exact match:
+supersession and restricted substitution are IPC data the parts catalog does
+not carry yet. No spare is a refusal, and refusals cite the IPC sheet — the
+sheet is generated from the same blueprint, so it cannot promise a part the
+ship does not have.
+
+**Records are an artifact, not a view.** A unit's record is its nameplate plus
+its logbook page: serial, part number, position, powered hours, and the
+history — fitted, removed, installed, and when. Reading it is allowed under No
+God View for the same reason reading a placard is: the crew is looking at
+something that physically exists. What it must never show is whether the unit
+is *actually* faulty. A board that came off on suspicion reads `not
+bench-tested`, because in v1 nobody has tested it; the FDR keeps the truth for
+review, where it belongs. When the bench arrives, that line becomes **no fault
+found** — a statement about the shop, not about the part — and a second NFF on
+the same serial is a story the player gets to notice on their own.
+
+**Hours are counted only where the sim knows.** v1 accrues powered hours for
+rail-gated data hardware, the one class whose power gate is already computed
+every tick. Everything else reads `not tracked`, never `0.0 h`: a zero would be
+a false instrument reading, which is the one thing an instrument may not do.
+
+**FDR.** `unit-removed` and `unit-installed`, each carrying serial, part
+number, position and the fault state found on removal. A swap is a maintenance
+action with consequences, and the review screen owes the player the record of
+who changed what.
+
+**Not in this increment:** SRU/bench work, shelf life, substitution tables,
+`reseat`, MEL deferral, tool/access/time cost, transducers and harness elements
+as serialized units (wiring is *repaired*, not swapped — `repair` stays where
+it belongs, on junctions and segments), and crew delegation of the task.
+
 ## Consequence bookkeeping
 
 - **Nonconformance log:** every jury-rig, exceeded limit, and skipped inspection. Feeds
   stress multipliers, insurance/audit events (campaign), and crew trust.
 - **Component history:** each serialized device tracks hours, cycles, faults, repairs —
   visible via records screen; used by wear model (a rebuilt pump is not a new pump).
+  v1 of this ledger ships with MAINT above: serial, position, powered hours, and the
+  fitted/removed/installed history, readable with `records` at any device address.
 - **FDR:** every casualty is reconstructable post-hoc; the review screen is both a
   learning tool and where the player writes the incident report (campaign reputation).
 
