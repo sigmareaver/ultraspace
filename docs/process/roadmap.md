@@ -114,6 +114,25 @@ and a display that disagree teach the crew to trust neither. New spec
 QRH is the third executable manual (00-00 using-this-book, 42-01 DATA BUS A
 FAILED); lamp test is step 1 of both cold & dark checklists. Note:
 [playtests/2026-09-13-m2-annunciator-discipline.md](playtests/2026-09-13-m2-annunciator-discipline.md).
+Progress 2026-09-13: MAINT v1 ✅ — a verdict finally has somewhere to go. Every
+fitted box is a serialized unit (`<P/N>/<NNNN>`, derived from the blueprint so
+stocking a part costs one content line), carrying position, powered hours and a
+fitted/removed/installed history readable with `records` at any device address.
+`swap lru` lands as two verbs, `remove` and `install`, because the interesting
+state is the position with nothing in it: a removed board draws no current,
+answers no poll, and cannot jam — so pulling a babbling terminal really does
+cure its bus, at the cost of the function. The bus table is *not* told; a
+controller cannot see an empty rack and still reads NO RESPONSE, and the only
+record of the hole is the ship's own stores sheet (`maint read`). Stores are
+finite and refusals cite the generated IPC sheet, which is built from the same
+blueprint the registry serializes. MAINT is the fourth executable manual (00-00
+using-this-book, 42-110-001 terminal replacement, closing with the SOM 42-30-01
+functional test); FIM 42-12's board verdicts now *end* the tree and hand off,
+because wiring is repaired where you stand and a box is an LRU. The U4
+acceptance vignette runs end to end as a casualty test — flux, emergent
+latch-up, QRH, FIM, swap, functional test — with nothing read that an
+instrument did not say. Note:
+[playtests/2026-09-13-m2-maint-swap.md](playtests/2026-09-13-m2-maint-swap.md).
 
 - Data network (DB-A/B, RT/BC, message schedules, bus analyzer tool); thermal loop v1
   (enough to make electronics care about heat); L2 forensic tier for PDU boards
@@ -128,7 +147,17 @@ FAILED); lamp test is step 1 of both cold & dark checklists. Note:
 - CI check that manual prose step numbers agree with their procedure's steps — the
   lamp-test insertion shifted every reference in two chapters and grep caught it,
   not the build.
-- MAINT station (records, spares, swap verbs), LOG station (FDR review v1).
+- Bus analyzer: a gated counter reset, FDR-recorded — a board swap leaves the old
+  error total against the new unit, so SOM 42-30-01's "errors 0" close-out is
+  unreachable after any casualty (playtest finding, 2026-09-13).
+- Procedures need a target parameter: MAINT 42-110-001 is printed for RT 12 and
+  played for RT 5 by hand-substituting an address and a breaker (NOTE 2). That does
+  not scale past two terminals (playtest finding, 2026-09-13).
+- `records` reaches only addressed positions, but the IPC issues a serial to every
+  fitted unit — the battery's nameplate is in the catalog and unreadable on the ship.
+- MAINT station UI (the verbs and the stores sheet shipped 2026-09-13), LOG station
+  (FDR review v1) — and with LOG, a notebook write verb, which closes both the
+  "note the flux" and the "why was this board pulled" findings.
 - Device power dependencies: annunciator panel as a powered device (a dark panel at
   cold & dark is the honest "alarm reset" — playtest finding, 2026-07-14 follow-up).
 - The canonical U4 latch-up story (simulation-depth.md) fully playable.
@@ -137,6 +166,10 @@ FAILED); lamp test is step 1 of both cold & dark checklists. Note:
 **Acceptance vignette:** the U4 story — from `DATA BUS A DEGRADED` annunciator to
 board A2 swap and functional test, navigated via FIM alone; casualty tests cover every
 shipped failure mode; a deliberately wrong FIM edit fails CI.
+Status 2026-09-13: the vignette walks end to end on TB-1 and is held there by
+`tests/casualties/test_u4_vignette.py`. What acceptance still wants is breadth —
+DB-B failover and the MEL deferral that make the story a *choice* rather than a
+single path, and the thermal loop that gives the stress model its second factor.
 
 ## M3 — Voices on the Loop (human element slice)
 

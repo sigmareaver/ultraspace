@@ -183,9 +183,29 @@ checklist lives there; walk it before declaring anything finished.
   test is now step 1 of SOM 24-30-01 and 24-30-03 — every later step reference in
   those chapters shifted by one. Spec: ata-31-indicating.md v0.1, ata-42-data.md
   v0.7; playtest note 2026-09-13 (annunciator discipline).
-- Next increments: stress/fault scheduling + intermittents, DB-B failover,
-  FIM 42-13 (the controller — the only harness-tree exit left), QRH v1 (caution
-  priority — playtest friction), MEL, thermal loop v1.
+- **Increment 7 landed 2026-09-13**: MAINT v1 — serialized units, finite stores,
+  and the swap verbs. `content/units.py` derives serials (`<P/N>/<NNNN>`, per part
+  number in blueprint order, spares continuing the sequence) so the generated IPC
+  sheet and `ship/units.py`'s `UnitRegistry` cannot disagree; `ShipSpec.spares`
+  is one content line per stocked part. `records` is answered at **every** device
+  address (like `read`) and prints serial, P/N, position, powered hours and the
+  fitted/removed/installed history — never a condition, because nothing aboard
+  tested the box. `maint.stores` is the second SCL fixture (`maint read`): stores,
+  bench, and the open positions that are the *only* record a rack is empty — the
+  BC still reads NO RESPONSE, since a controller cannot see an empty rack.
+  `RemoteTerminal` gained `remove`/`install` (replacing `repair`, which stays on
+  harness elements: wiring is spliced, boxes are swapped) behind the existing
+  de-energize interlock; an unfitted position stamps no conductance and answers
+  no poll, so pulling a babbler cures its bus. `Phase.DEVICES` is finally used —
+  powered hours accrue only for rail-gated data hardware, everything else reads
+  `not tracked` rather than a false `0.0 h`. MAINT is the fourth executable manual
+  (`data/manuals/maint/`), FIM 42-12's board verdicts now *end* the tree and hand
+  off to it, and the U4 acceptance vignette runs end to end in
+  `tests/casualties/test_u4_vignette.py`. Spec: failure-and-repair.md v0.4,
+  ata-42-data.md v0.8; playtest note 2026-09-13 (MAINT swap).
+- Next increments: DB-B failover, FIM 42-13 (the controller — the only harness-tree
+  exit left), MEL v1 (defer DB-A), thermal loop v1, intermittents, analyzer counter
+  reset and a procedure target parameter (both increment-7 playtest findings).
 - Git: remote `origin` → github.com/sigmareaver/ultraspace.
 
 ## Git discipline
