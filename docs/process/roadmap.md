@@ -97,6 +97,23 @@ authored one are indistinguishable except in the FDR. The SEU monitor
 terminal that cannot be shed latches up anyway on a severe event — under an
 already-lit lamp. Note:
 [playtests/2026-09-13-m2-particle-event.md](playtests/2026-09-13-m2-particle-event.md).
+Progress 2026-09-13: annunciator discipline + QRH v1 ✅ — the panel learns to
+rank. Annunciations carry a severity (`warning`/`caution`/`advisory`, spelled
+in words on every text surface because the teletype has no color), the ship
+grows two master lights instead of one, and every lamp carries a second bit:
+**acknowledged**. `sys.annunciator ack` says *I have seen this* and never
+clears anything, so the masters can flash again for the next thing; recall
+ranks severity, then new-before-seen, then blueprint order — never recency,
+because the newest problem is usually a consequence of the worst one. Graded
+annunciation closes the increment-5 finding: `DATA BUS A FAILED` (warning)
+sits above `DATA BUS A DEGRADED` (caution) on the same measurement, so a
+casualty under a lamp the crew lit themselves announces itself. One
+`DataBus.state_word()` now feeds the analyzer and the grading, because a panel
+and a display that disagree teach the crew to trust neither. New spec
+[../design/systems/ata-31-indicating.md](../design/systems/ata-31-indicating.md);
+QRH is the third executable manual (00-00 using-this-book, 42-01 DATA BUS A
+FAILED); lamp test is step 1 of both cold & dark checklists. Note:
+[playtests/2026-09-13-m2-annunciator-discipline.md](playtests/2026-09-13-m2-annunciator-discipline.md).
 
 - Data network (DB-A/B, RT/BC, message schedules, bus analyzer tool); thermal loop v1
   (enough to make electronics care about heat); L2 forensic tier for PDU boards
@@ -104,7 +121,13 @@ already-lit lamp. Note:
   hazards (the stress model's v2 factors: thermal, duty, wear).
 - Bus table: mark a terminal *shed by command* so a planned shed does not bury
   the error counters FIM 42-11 reads (playtest finding, 2026-09-13).
-- FIM Ch 24/42 with executable isolation tasks; QRH v1; MEL v1 (defer DB-A!).
+- FIM Ch 24/42 with executable isolation tasks; QRH 24-01 and 31-01 (the executable
+  priority page); generated QRH index; MEL v1 (defer DB-A!).
+- Teletype: `wait` must abort on a new warning-severity annunciation and say why
+  (playtest finding, 2026-09-13). A master warning interrupts what you are doing.
+- CI check that manual prose step numbers agree with their procedure's steps — the
+  lamp-test insertion shifted every reference in two chapters and grep caught it,
+  not the build.
 - MAINT station (records, spares, swap verbs), LOG station (FDR review v1).
 - Device power dependencies: annunciator panel as a powered device (a dark panel at
   cold & dark is the honest "alarm reset" — playtest finding, 2026-07-14 follow-up).

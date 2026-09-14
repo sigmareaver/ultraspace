@@ -168,6 +168,21 @@ checklist lives there; walk it before declaring anything finished.
   `tools/check_units.py` grew flux/rate/dose keywords and segment-aware
   matching. Spec: ata-42-data.md v0.6, failure-and-repair.md v0.3; playtest
   note 2026-09-13 (particle event).
+- **Increment 6 landed 2026-09-13**: annunciator discipline (new chapter:
+  `docs/design/systems/ata-31-indicating.md`) + QRH v1. `AnnunciatorSpec.severity`
+  (warning/caution/advisory, default caution); `Annunciator.acknowledged` and
+  `is_new`; `AnnunciatorPanel.recall()` ranks severity → new-before-seen →
+  blueprint order (never recency); `master_warning`/`master_caution` replace the
+  single any-lamp flag, each with a `_new` (flashing) form. The panel is an SCL
+  **fixture** at `sys.annunciator` — address and verbs (`read`/`ack`/`test`), no
+  electrical ports yet; `sys read` is the recall list. Graded annunciation:
+  `DATA BUS A FAILED` (warning) over `DATA BUS A DEGRADED` (caution) on the same
+  telemetry, which closes the increment-5 playtest finding; `DataBus.state_word()`
+  (HEALTHY/DEGRADED/FAILED) is the single source of that word for the analyzer and
+  the panel. QRH is the third executable manual (`data/manuals/qrh/`), and lamp
+  test is now step 1 of SOM 24-30-01 and 24-30-03 — every later step reference in
+  those chapters shifted by one. Spec: ata-31-indicating.md v0.1, ata-42-data.md
+  v0.7; playtest note 2026-09-13 (annunciator discipline).
 - Next increments: stress/fault scheduling + intermittents, DB-B failover,
   FIM 42-13 (the controller — the only harness-tree exit left), QRH v1 (caution
   priority — playtest friction), MEL, thermal loop v1.
